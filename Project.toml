@@ -2,3 +2,13 @@ name = "Interstate"
 uuid = "d1dc07d0-456e-4a45-b97a-3837634689d3"
 authors = ["Forrest Laine <forrest.laine@vanderbilt.edu>"]
 version = "0.1.0"
+
+[deps]
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+OSQP = "ab2f91bb-94b4-55e3-9ba0-7f65df51de79"
+Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
