@@ -3,6 +3,7 @@ using GLMakie
 using Colors
 using StaticArrays
 using Polyhedra
+using Rotations
 
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=30.0, lanes=4, lanewidth=5.0)
  
@@ -49,12 +50,21 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     lookat = Vec3{Float32}(0, 0, 0)
     update_cam!(scene, camera_pos, lookat)
 
+    elevation = atan(-camera_pos[3], norm(camera_pos[1:2]))
+    #todo fix this
+    azimuth = atan(camera_pos[2], camera_pos[1])
+
+    R = randn(3,3)
+    t = randn(3)
+
+
+    
     visualize_road(scene, road)
     
     SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
     SENSE_CAM = Channel{Set{BBoxMeas}}(1)
     s1 = FleetOracle(Set(1:num_agents), SENSE_FLEET)
-    s2 = Camera(camera_pos, lookat, SENSE_CAM)
+    s2 = Camera(focal_len=1.0, fov=[-1,1;-1,1], R=R, t=t, channel=SENSE_CAM)
     sensors = Dict(1=>s1)
  
     #TODO pull view_obj stuff into function 
