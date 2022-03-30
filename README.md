@@ -1,3 +1,3 @@
-# Interstate.jl (under active development)
+# Interstate.jl
 
 A lightweight driving simulator, written in Julia.
