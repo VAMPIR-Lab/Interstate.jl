@@ -38,6 +38,11 @@ struct PinholeCamera<:Sensor
     channel::Channel
 end
 
+struct CameraArray<:Sensor
+    cameras::Dict{Int, PinholeCamera}
+    channel::Channel
+end
+
 function get_transform(pos, lookat)
     Δ = lookat-pos  
     z⃗ = Δ / norm(Δ)
@@ -82,21 +87,46 @@ function expected_bbox(camera, pts, gt)
     for pt ∈ pts
         px = max(min(camera.focal_len * pt[1] / (pt[3] * camera.sx), 1.0), -1.0)
         py = max(min(camera.focal_len * pt[2] / (pt[3] * camera.sy), 1.0), -1.0)
-        if px < top
-            top = px
+        if py < top
+            top = py
         end
-        if px > bottom
-            bottom = px
+        if py > bottom
+            bottom = py
         end
-        if py < left
-            left = py
+        if px < left
+            left = px
         end
-        if py > right
-            right = py
+        if px > right
+            right = px
         end
     end
     BBoxMeas(left, top, right, bottom, gt)
 end
+
+function draw_bbox_2_world(scene, camera, bbox; z=1.0, color=:red, linewidth=1)
+    left = bbox.left
+    top = bbox.top
+    right = bbox.right
+    bot = bbox.bottom
+
+    z = 1.0
+    x_left = left*z*camera.sx / camera.focal_len
+    x_right = right*z*camera.sx / camera.focal_len
+    y_top = top*z*camera.sy / camera.focal_len
+    y_bot = bot*z*camera.sy / camera.focal_len
+
+    pts = [x_left x_left x_right x_right x_left;
+           y_top y_bot y_bot y_top y_top;
+           z    z     z      z     z]
+    for i in 1:5
+        pts[:,i] .= camera.R'*(pts[:,i]-camera.t)
+    end
+    line = lines!(scene, pts[1,:], pts[2,:], pts[3,:], color=color, linewidth=linewidth)
+    return line
+end
+     
+    
+
 
 function update_sensor(sensor::Oracle, gt, ms, road)
     m = ms[sensor.m_id]
@@ -120,7 +150,7 @@ function update_sensor(sensor::FleetOracle, gt, ms, road)
     put!(sensor.channel, meas)
 end
 
-function update_sensor(sensor::PinholeCamera, gt, ms, road)
+function get_camera_meas(sensor, gt, ms, road)
     meas = Vector{BBoxMeas}()
     for (id, m) ∈ ms
         pts = get_corners(m)
@@ -129,6 +159,23 @@ function update_sensor(sensor::PinholeCamera, gt, ms, road)
             bbox = expected_bbox(sensor, pts, gt)
             push!(meas, bbox)
         end
+    end
+    meas
+end
+
+function update_sensor(sensor::PinholeCamera, gt, ms, road)
+    meas = get_camera_meas(sensor, gt, ms, road)
+    while length(sensor.channel.data) > 0
+        take!(sensor.channel)
+    end
+    put!(sensor.channel, meas)
+end
+
+function update_sensor(sensor::CameraArray, gt, ms, road)
+    meas = Dict{Int, Vector{BBoxMeas}}()
+    for (id, camera) ∈ sensor.cameras
+        m = get_camera_meas(camera, gt, ms, road)
+        meas[id] = m
     end
     while length(sensor.channel.data) > 0
         take!(sensor.channel)

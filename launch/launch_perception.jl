@@ -6,6 +6,12 @@ using Polyhedra
 using Rotations
 
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=30.0, lanes=4, lanewidth=5.0)
+    num_agents=50
+    num_viewable=50
+    loop=true
+    loop_radius=30.0
+    lanes=4
+    lanewidth=5.0
  
     CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
     TRACKS = Channel{Dict{Int, OracleMeas}}(1)
@@ -47,17 +53,24 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
     cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
-    camera_pos = SVector{3,Float64}(loop_radius/2.0, loop_radius, 10.0)
+    camera_pos_1 = SVector{3,Float64}(loop_radius/2.0, loop_radius, 10.0)
+    println("Cam pos 1: ", camera_pos_1)
+    camera_pos_2 = SVector{3,Float64}(loop_radius/3.0, loop_radius, 10.0)
     lookat = SVector{3,Float64}(0, 0, 0)
-    update_cam!(scene, camera_pos, lookat)
+    update_cam!(scene, camera_pos_1, lookat)
 
     SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
-    SENSE_CAM = Channel{Vector{BBoxMeas}}(1)
+    SENSE_CAM = Channel{Dict{Int, Vector{BBoxMeas}}}(1)
     s1 = FleetOracle(Set(1:num_agents), SENSE_FLEET)
-    s2 = PinholeCamera(focal_len=0.05, sx=.01, sy=.01, camera_pos=camera_pos, lookat=lookat, channel=SENSE_CAM)
+    c1 = PinholeCamera(focal_len=0.05, sx=.02, sy=.01, camera_pos=camera_pos_1, lookat=lookat, channel=Channel(0))
+    c2 = PinholeCamera(focal_len=0.05, sx=.02, sy=.01, camera_pos=camera_pos_2, lookat=lookat, channel=Channel(0))
+    camera_array = Dict(1=>c1, 2=>c2)
+    s2 = CameraArray(camera_array, SENSE_CAM)
     sensors = Dict(1=>s1, 2=>s2)
     
     visualize_road(scene, road)
+    outer_bbox = Interstate.BBoxMeas(-1.0,-1.0,1.0,1.0,0.0)
+    camera_region = Interstate.draw_bbox_2_world(scene, camera_array[1], outer_bbox, z=10.0, linewidth=5, color=:black)
  
     #TODO pull view_obj stuff into function 
     view_objs = []
@@ -77,7 +90,7 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     display(scene)
     
     @sync begin
-        @async object_tracker(SENSE_CAM, TRACKS, EMG, road)
+        @async object_tracker(SENSE_CAM, TRACKS, EMG, scene, camera_array, road)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @async simulate(sim, EMG; disp=false)
         @async keyboard_broadcaster(KEY, EMG)
