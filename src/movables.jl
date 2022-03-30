@@ -2,7 +2,7 @@ abstract type Movable end
 
 VehicleControl = SVector{2, Float64}
 
-Base.@kwdef mutable struct Unicycle <: Movable
+Base.@kwdef struct Unicycle <: Movable
     state::MVector{4, Float64} = MVector{4, Float64}(0,0,0,0)
     control::MVector{2, Float64} = MVector{2, Float64}(0,0)
     length::Float64 = 3.0
@@ -14,8 +14,7 @@ Base.@kwdef mutable struct Unicycle <: Movable
     channel = Channel(0)
 end
 
-#todo not mutable structs
-Base.@kwdef mutable struct Bicycle <: Movable
+Base.@kwdef struct Bicycle <: Movable
     state::MVector{4, Float64} = MVector{4, Float64}(0,0,0,0)
     control::MVector{2, Float64} = MVector{2, Float64}(0,0)
     lf::Float64 = 1.5

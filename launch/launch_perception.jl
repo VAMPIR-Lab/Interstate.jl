@@ -54,7 +54,6 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     scene = Scene(resolution = (1200, 1200), show_axis=false)
     cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
     camera_pos_1 = SVector{3,Float64}(loop_radius/2.0, loop_radius, 10.0)
-    println("Cam pos 1: ", camera_pos_1)
     camera_pos_2 = SVector{3,Float64}(loop_radius/3.0, loop_radius, 10.0)
     lookat = SVector{3,Float64}(0, 0, 0)
     update_cam!(scene, camera_pos_1, lookat)
@@ -92,7 +91,7 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     @sync begin
         @async object_tracker(SENSE_CAM, TRACKS, EMG, scene, camera_array, road)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG; disp=false)
+        @async simulate(sim, EMG; disp=false, check_collision=false)
         @async keyboard_broadcaster(KEY, EMG)
     end
     #GLMakie.destroy!(GLMakie.global_gl_screen())

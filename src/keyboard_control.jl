@@ -7,7 +7,7 @@ function getc1()
 end
 
 function keyboard_broadcaster(KEY::Channel, EMG::Channel)
-    println("Awaiting keys.")
+    println("Press 'q' at any time to terminate simulator.")
     while true
         if length(EMG.data) > 0
             return
@@ -36,6 +36,12 @@ function clip(x, l)
 end
 
 function controller(KEY::Channel, CMD::Channel, SENSE::Channel, EMG::Channel; K1=5, K2=.5, disp=false, V=0.0, θ = 0.0, V_max = 100.0)
+    println("Keyboard controller in use.")
+    println("Press 'i' to speed up,")
+    println("Press 'k' to slow down,")
+    println("Press 'j' to turn left,")
+    println("Press 'l' to turn right.")
+
     while true
         sleep(0.001)
         if length(EMG.data) > 0

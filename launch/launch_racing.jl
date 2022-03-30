@@ -23,7 +23,6 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     movables = Dict(1=>m1)
     
     for i ∈ 2:num_agents
-        θ = 0.0
         extra_size = rand()
         width = 1.5 + 2.0 * extra_size
         length = 3.0 + 6.0 * extra_size
@@ -32,7 +31,10 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         lane = rand(1:lanes)
         color = parse(RGB, "rgb"*string(Tuple(rand(0:255,3))))
         if loop
-            θ = rand() * 2.0 * pi - pi
+            θ = -π/2.0
+            while -π/2.0-π/6.0 ≤ θ ≤ -π/2.0+π/6.0
+                θ = rand() * 2.0 * pi - pi
+            end
             rad = loop_radius + lanewidth / 2.0 + lanewidth * (lane-1)
             x = 0.0+cos(θ)*rad
             y = loop_radius+sin(θ)*rad
@@ -73,11 +75,9 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     for i ∈ 1:num_viewable
         color = Observable(movables[i].color)
         corners = Observable{SVector{8, SVector{3, Float64}}}(get_corners(movables[i]))
-        #corners = SVector{8, Observable{SVector{3, Float64}}}(get_corners(movables[i]))
         push!(view_objs, (corners, color)) 
 
         hull = @lift convexhull($corners...)
-        #hull = @lift convexhull($(corners[1]), $(corners[2]), $(corners[3]), $(corners[4]), $(corners[5]), $(corners[6]), $(corners[7]), $(corners[8]))
         poly = @lift polyhedron($hull)
         mesh = @lift Polyhedra.Mesh($poly)  
         GLMakie.mesh!(scene, mesh, color=color)
@@ -99,6 +99,5 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         @async simulate(sim, EMG; disp=false)
         @async keyboard_broadcaster(KEY, EMG)
     end
-    #GLMakie.destroy!(GLMakie.global_gl_screen())
     nothing
 end

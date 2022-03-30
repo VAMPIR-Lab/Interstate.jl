@@ -24,12 +24,6 @@ function get_crosstrack_error(pos, heading, speed, target_lane, seg::StraightSeg
     perp = [del[2], -del[1]]
     ctv = -speed*perp'*[cos(heading), sin(heading)]
 
-    #for l ∈ 1:lanes
-    #    if pos'*perp ≤ seg.start'*perp + l*lanewidth
-    #        return ((seg.start-pos)'*perp + (l-0.5)*lanewidth), ctv
-    #    end
-    #end
-    #return (pos-(seg.start + (target_lane-0.5)*lanewidth*perp))'*perp, ctv
     return ((seg.start-pos)'*perp + (target_lane-0.5)*lanewidth), ctv
 end
 
@@ -39,11 +33,6 @@ function get_crosstrack_error(pos, heading, speed, target_lane, seg::CurvedSegme
         perp = seg.center - pos
         perp /= norm(perp)
         ctv = speed*perp'*[cos(heading), sin(heading)]
-        #for l ∈ 1:lanes
-        #    if rad ≤ seg.radius + l*lanewidth
-        #        return (seg.radius + (l-0.5)*lanewidth - rad), ctv
-        #    end
-        #end 
         return (seg.radius + (target_lane-0.5)*lanewidth - rad), ctv
     else
         perp = pos-seg.center
@@ -66,7 +55,6 @@ function road_segment(m, road; buf=5.0)
             del /= norm(del)
             perp = [del[2], -del[1]]
             long = seg.start'*del-buf ≤ pos'*del ≤ seg.finish'*del
-            #long = pos'*del ≤ seg.finish'*del
             lat = seg.start'*perp-buf ≤ pos'*perp ≤ seg.start'*perp + road.lanes*road.lanewidth + buf
             if lat && long
                 return i

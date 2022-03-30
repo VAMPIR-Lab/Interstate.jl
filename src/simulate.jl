@@ -39,7 +39,6 @@ function find_closest!(ids, movables, n)
 end
 
 function collision(movables, closest_ids)
-    return false
     for id ∈ closest_ids
         if id != 1 
             col = collision(movables[1], movables[id])
@@ -55,10 +54,6 @@ function update_display!(viewables, movables, closest_ids)
     for (i,id) ∈ enumerate(closest_ids)
         pts = get_corners(movables[id])
         viewables[i][1][] = pts
-        #for j ∈ 1:8
-            #viewables[i][1][j][] = pts[j]
-            #viewables[i][1][][j] = pts[j]
-        #end
         viewables[i][2][] = movables[id].color
     end
 end
@@ -74,6 +69,7 @@ end
 function simulate(sim::Simulator, e;
                   Δ=0.001,              
                   disp=false,
+                  check_collision=true,
                   K = 0.01,
                   print_increment=0.01,
                   )
@@ -112,7 +108,7 @@ function simulate(sim::Simulator, e;
 
             find_closest!(closest_ids, sim.movables, num_viewed) 
 
-            if collision(sim.movables, closest_ids)
+            if check_collision && collision(sim.movables, closest_ids)
                 println()
                 println("Collision!")
                 put!(e, 1)
