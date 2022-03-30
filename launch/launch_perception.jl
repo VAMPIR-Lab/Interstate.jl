@@ -8,6 +8,7 @@ using Rotations
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=30.0, lanes=4, lanewidth=5.0)
  
     CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
+    TRACKS = Channel{Dict{Int, OracleMeas}}(1)
     EMG = Channel(1)
     KEY = Channel(1)
 
@@ -46,26 +47,17 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
     cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
-    camera_pos = Vec3{Float32}(loop_radius/2.0, loop_radius, 10.0)
-    lookat = Vec3{Float32}(0, 0, 0)
+    camera_pos = SVector{3,Float64}(loop_radius/2.0, loop_radius, 10.0)
+    lookat = SVector{3,Float64}(0, 0, 0)
     update_cam!(scene, camera_pos, lookat)
 
-    elevation = atan(-camera_pos[3], norm(camera_pos[1:2]))
-    #todo fix this
-    azimuth = atan(camera_pos[2], camera_pos[1])
-
-    R = randn(3,3)
-    t = randn(3)
-
-
+    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
+    SENSE_CAM = Channel{Vector{BBoxMeas}}(1)
+    s1 = FleetOracle(Set(1:num_agents), SENSE_FLEET)
+    s2 = PinholeCamera(focal_len=0.05, sx=.01, sy=.01, camera_pos=camera_pos, lookat=lookat, channel=SENSE_CAM)
+    sensors = Dict(1=>s1, 2=>s2)
     
     visualize_road(scene, road)
-    
-    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
-    SENSE_CAM = Channel{Set{BBoxMeas}}(1)
-    s1 = FleetOracle(Set(1:num_agents), SENSE_FLEET)
-    s2 = Camera(focal_len=1.0, fov=[-1,1;-1,1], R=R, t=t, channel=SENSE_CAM)
-    sensors = Dict(1=>s1)
  
     #TODO pull view_obj stuff into function 
     view_objs = []
@@ -80,14 +72,12 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
         GLMakie.mesh!(scene, mesh, color=color)
     end
 
-
-    #lines!(scene, Rect2f(-0.5, -0.5, 1, 1), linewidth=5, color=:red)
-
     sim = Simulator(movables, sensors, view_objs, nothing, road)
 
     display(scene)
     
     @sync begin
+        @async object_tracker(SENSE_CAM, TRACKS, EMG, road)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @async simulate(sim, EMG; disp=false)
         @async keyboard_broadcaster(KEY, EMG)

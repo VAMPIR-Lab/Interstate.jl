@@ -29,15 +29,33 @@ struct BBoxMeas <: Observation
     time
 end
 
-Base.@kwdef struct Camera<:Sensor
+struct PinholeCamera<:Sensor
     focal_len::Float64
-    fov::SMatrix{2,2, Float64}
+    sx::Float64
+    sy::Float64
     R::SMatrix{3,3,Float64}
     t::SVector{3, Float64}
     channel::Channel
 end
 
-function transform!(camera::Camera, pts...)
+function get_transform(pos, lookat)
+    Δ = lookat-pos  
+    z⃗ = Δ / norm(Δ)
+    x⃗ = cross(z⃗, [0.0,0.0,1.0])
+    x⃗ /= norm(x⃗)
+    y⃗ = cross(z⃗, x⃗)
+    y⃗ /= norm(y⃗)
+    R = [x⃗ y⃗ z⃗]
+    t = -R'*pos
+    R', t
+end
+
+function PinholeCamera(; focal_len::Float64=0.05, sx::Float64=10, sy::Float64=10, camera_pos::SVector{3, Float64}, lookat::SVector{3, Float64}, channel::Channel)
+    R, t = get_transform(camera_pos, lookat)
+    PinholeCamera(focal_len, sx, sy, R, t, channel)
+end
+
+function transform!(camera::PinholeCamera, pts...)
     for pt ∈ pts
         pt .= camera.R*pt + camera.t 
     end
@@ -45,8 +63,8 @@ end
 
 function infov(pts, camera)
     for pt ∈ pts
-        x = camera.fov[1,1] ≤ camera.focal_len * pt[1] / pt[3] ≤ camera.fov[1,2]
-        y = camera.fov[2,1] ≤ camera.focal_len * pt[2] / pt[3] ≤ camera.fov[2,2]
+        x = -1.0 ≤ camera.focal_len * pt[1] / (pt[3]*camera.sx) ≤ 1.0
+        y = -1.0 ≤ camera.focal_len * pt[2] / (pt[3]*camera.sy) ≤ 1.0
         z = pt[3] > 0 
         if x && y && z
             return true
@@ -62,8 +80,8 @@ function expected_bbox(camera, pts, gt)
     right = -Inf
     bottom = -Inf
     for pt ∈ pts
-        px = camera.focal_len * pt[1] / pt[3]
-        py = camera.focal_len * pt[2] / pt[3]
+        px = max(min(camera.focal_len * pt[1] / (pt[3] * camera.sx), 1.0), -1.0)
+        py = max(min(camera.focal_len * pt[2] / (pt[3] * camera.sy), 1.0), -1.0)
         if px < top
             top = px
         end
@@ -102,17 +120,17 @@ function update_sensor(sensor::FleetOracle, gt, ms, road)
     put!(sensor.channel, meas)
 end
 
-function update_sensor(sensor::Camera, gt, ms, road)
-    meas = Vector{BBoxMeas}
+function update_sensor(sensor::PinholeCamera, gt, ms, road)
+    meas = Vector{BBoxMeas}()
     for (id, m) ∈ ms
         pts = get_corners(m)
         transform!(sensor, pts...)
         if infov(pts, sensor)
-            bbox = expected_bbox(pts, gt)
+            bbox = expected_bbox(sensor, pts, gt)
             push!(meas, bbox)
         end
     end
-    while length(sensr.channel.data) > 0
+    while length(sensor.channel.data) > 0
         take!(sensor.channel)
     end
     put!(sensor.channel, meas)

@@ -39,6 +39,7 @@ function find_closest!(ids, movables, n)
 end
 
 function collision(movables, closest_ids)
+    return false
     for id ∈ closest_ids
         if id != 1 
             col = collision(movables[1], movables[id])
