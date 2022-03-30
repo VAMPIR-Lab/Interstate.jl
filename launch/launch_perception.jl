@@ -6,12 +6,6 @@ using Polyhedra
 using Rotations
 
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=30.0, lanes=4, lanewidth=5.0)
-    num_agents=50
-    num_viewable=50
-    loop=true
-    loop_radius=30.0
-    lanes=4
-    lanewidth=5.0
  
     CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
     TRACKS = Channel{Dict{Int, OracleMeas}}(1)
