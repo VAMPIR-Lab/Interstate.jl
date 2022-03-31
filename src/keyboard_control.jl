@@ -35,7 +35,7 @@ function clip(x, l)
     max(-l, min(l, x))
 end
 
-function controller(KEY::Channel, CMD::Channel, SENSE::Channel, EMG::Channel; K1=5, K2=.5, disp=false, V=0.0, θ = 0.0, V_max = 100.0)
+function controller(KEY::Channel, CMD::Channel, SENSE::Channel, EMG::Channel; K1=5, K2=.5, disp=false, V=0.0, θ = 0.0, V_max = 100.0, θ_step=0.1, V_step = 1.5)
     println("Keyboard controller in use.")
     println("Press 'i' to speed up,")
     println("Press 'k' to slow down,")
@@ -61,13 +61,13 @@ function controller(KEY::Channel, CMD::Channel, SENSE::Channel, EMG::Channel; K1
             continue
         end
         if key == 'i'
-            V = min(V_max, V+1.5)
+            V = min(V_max, V+V_step)
         elseif key == 'j' 
-            θ += 0.075
+            θ += θ_step
         elseif key == 'k'
-            V = max(0, V-2.0)
+            V = max(0, V-V_step)
         elseif key == 'l'
-            θ -= 0.075
+            θ -= θ_step
         end
         err_1 = V-speed
         err_2 = clip(θ-heading, π/2)

@@ -1,31 +1,3 @@
-function collision(m1::Movable, m2::Movable)
-    P = sparse([1. 0 -1. 0;
-                0 1. 0 -1.;
-                -1. 0 1. 0;
-                0. -1. 0 1.])
-    c1 = cos(heading(m1))
-    s1 = sin(heading(m1))
-    c2 = cos(heading(m2))
-    s2 = sin(heading(m2))
-    A = [c1 s1 0 0 ;
-         -s1 c1 0 0;
-         0 0 c2 s2;
-         0 0 -s2 c2]
-    b = A*[position(m1); position(m2)]
-    l = [rear(m1), right(m1), rear(m2), right(m2)] + b
-    u = [front(m1), left(m1), front(m2), left(m2)] + b
-
-    mod = OSQP.Model()
-    OSQP.setup!(mod; P=P, q=zeros(4), A=sparse(A), l=l, u=u, verbose=false, polish=true)
-    results = OSQP.solve!(mod)
-
-    results.info.obj_val < 1e-5
-end
-
-function norm(x)
-    sqrt(x'*x)
-end
-
 function find_closest!(ids, movables, n)
     dists = []
     for (i, m) ∈ movables
@@ -36,6 +8,13 @@ function find_closest!(ids, movables, n)
     for i ∈ 1:length(ids)
         ids[i] = dists[i][2]
     end
+end
+
+function collision(m1::Movable, m2::Movable)
+    b1 = Box2(m1)
+    b2 = Box2(m2)
+    (; collision) = intersect(b1,b2)
+    collision
 end
 
 function collision(movables, closest_ids)
@@ -81,6 +60,8 @@ function simulate(sim::Simulator, e;
     closest_ids = zeros(Int, num_viewed)
     if length(sim.movables) > 1
         CMD_FLEET = sim.movables[2].channel
+    else
+        CMD_FLEET = Channel(0)
     end
     #try
         while true
@@ -102,11 +83,12 @@ function simulate(sim::Simulator, e;
                 update_state!(movable, Δ)
             end
 
+
+            find_closest!(closest_ids, sim.movables, num_viewed) 
+
             for (id, sensor) ∈ sim.sensors
                 update_sensor(sensor, simulated_time, sim.movables,sim.road)
             end
-
-            find_closest!(closest_ids, sim.movables, num_viewed) 
 
             if check_collision && collision(sim.movables, closest_ids)
                 println()

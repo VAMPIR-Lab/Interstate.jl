@@ -2,8 +2,9 @@ abstract type Sensor end
 abstract type Observation end
 
 struct Oracle<:Sensor
-    m_id
-    channel
+    m_id::Int
+    find_road_segment::Bool
+    channel::Channel
 end
 
 struct OracleMeas <: Observation 
@@ -29,6 +30,13 @@ struct BBoxMeas <: Observation
     time
 end
 
+struct PointCloud <: Observation
+    points::Vector{SVector{3, Float64}}
+    origin::SVector{3, Float64}
+    time
+end
+    
+
 struct PinholeCamera<:Sensor
     focal_len::Float64
     sx::Float64
@@ -40,6 +48,15 @@ end
 
 struct CameraArray<:Sensor
     cameras::Dict{Int, PinholeCamera}
+    channel::Channel
+end
+
+struct Lidar<:Sensor
+    angular_resolution::Int
+    beam_elevations::Vector{Float64}
+    offset::SVector{3, Float64} # relative to top center of movable[m_id]
+    max_beam_length::Float64
+    m_id::Int
     channel::Channel
 end
 
@@ -77,7 +94,6 @@ function infov(pts, camera)
     end
     return false
 end
-
 
 function expected_bbox(camera, pts, gt)
     left = Inf
@@ -124,13 +140,16 @@ function draw_bbox_2_world(scene, camera, bbox; z=1.0, color=:red, linewidth=1)
     line = lines!(scene, pts[1,:], pts[2,:], pts[3,:], color=color, linewidth=linewidth)
     return line
 end
-     
-    
 
+function draw_lidar_beams_2_world(scene, lidar, point_cloud; color=:red, linewidth=1)
+    o = point_cloud.origin
+    ll = [lines!(scene, [o[1],pt[1]], [o[2],pt[2]], [o[3],pt[3]], color=color, linewidth=linewidth) for pt ∈ point_cloud.points]
+end
 
 function update_sensor(sensor::Oracle, gt, ms, road)
     m = ms[sensor.m_id]
-    meas = OracleMeas(position(m), speed(m), heading(m), road_segment(m,road), m.target_lane, m.target_vel, gt)
+    seg = sensor.find_road_segment ? road_segment(m, road) : -1
+    meas = OracleMeas(position(m), speed(m), heading(m), seg, m.target_lane, m.target_vel, gt)
     while length(sensor.channel.data) > 0
         take!(sensor.channel)
     end
@@ -183,3 +202,44 @@ function update_sensor(sensor::CameraArray, gt, ms, road)
     put!(sensor.channel, meas)
 end
 
+function expected_lidar_return(pos, α_min, ϕ, θ, ms, road)
+    x = cos(θ)
+    y = sin(θ)
+    z = -atan(ϕ, 1.0)
+    beam = [x, y, z]
+    beam /= norm(beam)
+    ray = Ray3(pos, beam)
+    α_ground = abs(pos[3]/beam[3])
+    α_min = min(α_min, α_ground)
+    pt_min = pos + α_min * beam
+    for (id, m) ∈ ms
+        box = Box3(m)
+        (; collision, p, α) = intersect(box, ray)
+        if collision && α < α_min
+            α_min = α
+            pt_min = p
+        end
+    end
+    return pt_min
+end
+
+function update_sensor(sensor::Lidar, gt, ms, road)
+    m_ego = ms[sensor.m_id]
+    lidar_pos = [position(m_ego); top(m_ego)] + sensor.offset
+    θ₀ = heading(m_ego)
+    pts = Vector{SVector{3, Float64}}()
+    N = sensor.angular_resolution
+    angles = LinRange(-π, π-2*π/N, N)
+    for ϕ ∈ sensor.beam_elevations
+        for θ ∈ angles
+            pt = expected_lidar_return(lidar_pos, sensor.max_beam_length, ϕ, θ+θ₀, ms, road)
+            push!(pts, pt)
+        end
+    end
+    meas = PointCloud(pts, lidar_pos, gt)
+    while length(sensor.channel.data) > 0
+        take!(sensor.channel)
+    end
+    put!(sensor.channel, meas)
+    
+end

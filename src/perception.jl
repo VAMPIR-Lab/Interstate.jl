@@ -1,5 +1,4 @@
 function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, scene, camera_array, road)
-    t = Terminals.TTYTerminal("", stdin, stdout, stderr) 
     lines = []
     while true
         sleep(0.001)

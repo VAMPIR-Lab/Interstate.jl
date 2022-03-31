@@ -60,7 +60,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     
     SENSE_EGO = Channel{OracleMeas}(1)
     SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
-    s1 = Oracle(1, SENSE_EGO) 
+    s1 = Oracle(1, false, SENSE_EGO) 
     s2 = FleetOracle(Set(2:num_agents), SENSE_FLEET)
     sensors = Dict(1=>s1, 2=>s2)
     

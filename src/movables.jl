@@ -1,4 +1,5 @@
 abstract type Movable end
+abstract type Immovable end
 
 VehicleControl = SVector{2, Float64}
 
@@ -27,6 +28,58 @@ Base.@kwdef struct Bicycle <: Movable
     channel = Channel(0)
 end
 
+Base.@kwdef struct Building <: Movable
+    position::SVector{2, Float64} = [0,0]
+    heading::Float64 = 0.0
+    width::Float64 = 10.0
+    length::Float64 = 10.0
+    height::Float64 = 20.0
+    color = parse(RGB, "rgb"*string((0,0,0)))
+    channel = Channel(0)
+end
+
+function position(m::Building)
+    m.position
+end
+function heading(m::Building)
+    m.heading
+end
+function speed(m::Building)
+    0.0
+end
+
+function update_state!(m::Building, Δ)
+    return
+end
+
+function insert_random_building!(buildings, x_range, y_range)
+    existing = [Box2(building) for building ∈ buildings]
+    block = Box2(x_range, y_range)
+    tries = 0
+    while true
+        x = x_range[1] + rand()*(x_range[2]-x_range[1])
+        y = y_range[1] + rand()*(y_range[2]-y_range[1])
+        position=[x,y]
+        heading = rand()*2*pi-pi
+        width = 5.0 + rand()*10.0
+        length = 5.0 + rand()*10.0
+        height = 10.0 + rand()*20.0
+        color = parse(RGB, "rgb"*string(Tuple(rand(0:255,3))))
+        building = Building(position, heading, width, length, height, color, Channel(0))
+        box = Box2(building)
+        if inside(box, block) && !any(intersect(box, other).collision for other ∈ existing)
+            push!(buildings, building)
+            break
+        else
+            tries += 1
+        end
+        if tries > 20
+            error("Can't make a random building, try different sizes")
+        end
+    end
+end
+
+
 function state(m)
     m.state
 end
@@ -37,9 +90,9 @@ end
 
 function get_corners(m)
     pts = Vector{Vector{Float64}}()
-    x = m.state[1]
-    y = m.state[2]
-    θ = m.state[4]
+    x = position(m)[1]
+    y = position(m)[2]
+    θ = heading(m)
     for i ∈ [rear(m), front(m)] 
         for j ∈ [right(m), left(m)]
             for k ∈ [bottom(m), top(m)]
@@ -120,4 +173,12 @@ function rear(m::Bicycle)
 end
 function front(m::Bicycle)
     m.lf
+end
+
+function rear(b::Building)
+    -0.5*b.length
+end
+
+function front(b::Building)
+    0.5*b.length
 end
