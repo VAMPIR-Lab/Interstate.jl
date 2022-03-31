@@ -17,5 +17,12 @@ function localize(SENSE::Channel, EMG::Channel, scene, lidar, road)
         end
 
         lines = draw_lidar_beams_2_world(scene, lidar, meas)
+
+        # TODO
+        # Your code here
+        
+     
+        
+
     end
 end

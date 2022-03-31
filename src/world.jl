@@ -122,7 +122,7 @@ function simple_loop(; radius=200.0, center=[0,radius], lanes=3, lanewidth=5.0)
     Road([seg,], lanewidth, lanes)
 end
 
-function random_grid(; lanes=3.0, lanewidth=5.0, blocks_long=3, blocks_wide=3, buildings_per_block=3)
+function random_grid(; lanes=3.0, lanewidth=5.0, blocks_long=3, blocks_wide=3, buildings_per_block=4)
     road_segments = []
 
     block_widths = 30*rand(blocks_wide) .+ 30
@@ -190,6 +190,7 @@ function random_grid(; lanes=3.0, lanewidth=5.0, blocks_long=3, blocks_wide=3, b
     end
 
     buildings = Vector{Building}()
+
     for i ∈ 1:blocks_wide
         for j ∈ 1:blocks_long
             x_coords = [sum(block_widths[1:i-1]), sum(block_widths[1:i])] .+ i * (lanes*lanewidth) 

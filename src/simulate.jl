@@ -13,8 +13,7 @@ end
 function collision(m1::Movable, m2::Movable)
     b1 = Box2(m1)
     b2 = Box2(m2)
-    (; collision) = intersect(b1,b2)
-    collision
+    intersect(b1,b2).collision
 end
 
 function collision(movables, closest_ids)
@@ -27,6 +26,28 @@ function collision(movables, closest_ids)
         end
     end
     return false
+end
+
+function road_violation(m::Movable, road)
+    segment_id = road_segment(m, road)  
+    mbox = Box2(m)
+    seg = road.segments[segment_id]
+    if isa(seg, CurvedSegment)
+        if seg.θ₁ ≤ seg.θ₂
+            inner = Circle(seg.center..., seg.radius)
+            outer = Circle(seg.center..., seg.radius+road.lanes*road.lanewidth)
+        else
+            outer = Circle(seg.center..., seg.radius)
+            inner = Circle(seg.center..., seg.radius-road.lanes*road.lanewidth)
+        end
+        c1 = inside(mbox, outer)
+        c2 = !intersect(mbox, inner).collision
+        violation = !inside(mbox, outer) || intersect(mbox, inner).collision
+        return violation
+    else
+        rbox = Box2(seg)
+        return inside(mbox, rbox)
+    end
 end
 
 function update_display!(viewables, movables, closest_ids)
@@ -49,6 +70,7 @@ function simulate(sim::Simulator, e;
                   Δ=0.001,              
                   disp=false,
                   check_collision=true,
+                  check_road_violation=[],
                   K = 0.01,
                   print_increment=0.01,
                   )
@@ -95,6 +117,17 @@ function simulate(sim::Simulator, e;
                 println("Collision!")
                 put!(e, 1)
                 return
+            end
+
+            if length(check_road_violation) > 0
+                for id ∈ check_road_violation
+                    if road_violation(sim.movables[id], sim.road)
+                        println()
+                        println("Road boundary violation!")
+                        put!(e, 1)
+                        return
+                    end
+                end
             end
 
             update_display!(sim.viewables, sim.movables, closest_ids)

@@ -23,6 +23,27 @@ function Box2(x_range, y_range)
     Box2(x, y, 0, lr, lf, w)
 end
 
+function Box2(road::Road, segment_id)
+    segment = road.segments[segment_id]
+    if isa(CurvedSegment, segment)
+        error("Can't make a curved road segment into a box!")
+    end
+    start = segment.start
+    finish = segment.finish
+    vec = finish-segment
+    len = norm(vec)
+    vec /= len
+    perp = [vec[2], -vec[1]]
+    w = road.lanes*road.lanewidth
+    start_r = start + perp*w
+    finish_r = finish + perp*w
+    avg = 0.25 * (start+start_r+finish+finish_r)
+    θ = atan(vec[2], vec[1])
+    lr = lf = 0.5*len
+    Box2(avg..., θ, lr, lf, w)
+end
+
+
 struct Circle<:Shape
     x::Float64
     y::Float64
@@ -117,9 +138,9 @@ function intersect(b1::Box2, b2::Box2)
     A1 = [c1 s1; -s1 c1]
     A2 = [c2 s2; -s2 c2]
     A = [A1 spzeros(2,2); spzeros(2,2) A2]
-    b = A*[b1.x, b1.y, b2.x, b2.y]
-    l = [-b1.lr, -b1.w/2, -b2.lr, -b2.w/2] + b
-    u = [b1.lf, b1.w/2, b2.lf, b2.w/2] + b
+    d = A*[b1.x, b1.y, b2.x, b2.y]
+    l = [-b1.lr, -b1.w/2, -b2.lr, -b2.w/2] + d
+    u = [b1.lf, b1.w/2, b2.lf, b2.w/2] + d
 
     mod = OSQP.Model()
     OSQP.setup!(mod; P=P, q=zeros(4), A=A, l=l, u=u, verbose=false, polish=true)
@@ -133,6 +154,31 @@ function intersect(b1::Box2, b2::Box2)
     (; collision, dist, p1, p2)
 end
 
+function intersect(circ::Circle, b::Box2)
+    intersect(b, circ)
+end
+
+function intersect(b::Box2, circ::Circle)
+    P = sparse(1.0I, 2, 2)
+    q = -[circ.x, circ.y]
+    c = cos(b.θ)
+    s = sin(b.θ)
+    A = sparse([c s; -s c])
+    d = A*[b.x, b.y]
+    l = [-b.lr, -b.w/2] + d
+    u = [b.lf, b.w/2] + d
+
+    mod = OSQP.Model()
+    OSQP.setup!(mod; P=P, q=q, A=A, l=l, u=u, verbose=false, polish=true)
+    results = OSQP.solve!(mod)
+
+    p = results.x[1:2]
+    dist = norm(p-[circ.x, circ.y])
+    collision = dist < circ.r
+
+    (; collision, dist, p)
+end
+
 function inside(pt::SVector{2,Float64}, b::Box2)
     c = cos(b.θ)
     s = sin(b.θ)
@@ -140,19 +186,30 @@ function inside(pt::SVector{2,Float64}, b::Box2)
     d = A*[b.x, b.y]
     l = [-b.lr, -b.w/2] + d
     u = [b.lf, b.w/2] + d
-    all(l ≤ A*pt ≤ u)
+    all(l .≤ A*pt .≤ u)
 end
 
-function inside(b1::Box2, b2::Box2)
-    center = [b1.x, b1.y]
-    c = cos(b1.θ)
-    s = sin(b1.θ)
+function inside(pt::SVector{2, Float64}, c::Circle)
+    norm([pt[1]-c.x, pt[2]-c.y]) ≤ c.r
+end
+
+function box_corners(b::Box2)
+    center = [b.x, b.y]
+    c = cos(b.θ)
+    s = sin(b.θ)
     A = [c s; -s c]
-    p1 = SVector{2,Float64}(center + A * [-b1.lr, -b1.w/2])
-    p2 = SVector{2,Float64}(center + A * [-b1.lr, b1.w/2])
-    p3 = SVector{2,Float64}(center + A * [b1.lf, -b1.w/2])
-    p4 = SVector{2,Float64}(center + A * [b1.lf, b1.w/2])
+    p1 = SVector{2,Float64}(center + A * [-b.lr, -b.w/2])
+    p2 = SVector{2,Float64}(center + A * [-b.lr, b.w/2])
+    p3 = SVector{2,Float64}(center + A * [b.lf, -b.w/2])
+    p4 = SVector{2,Float64}(center + A * [b.lf, b.w/2])
     pts = [p1, p2, p3, p4]
-    all(inside(pt, b2) for pt ∈ pts)
 end
     
+
+function inside(b1::Box2, b2::Box2)
+    all(inside(pt, b2) for pt ∈ box_corners(b1))
+end
+
+function inside(box::Box2, circ::Circle)
+    all(inside(pt, circ) for pt ∈ box_corners(box))
+end

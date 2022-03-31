@@ -4,7 +4,7 @@ using Colors
 using StaticArrays
 using Polyhedra
 
-function launch_mapping(; num_viewable=10, lanes=4, lanewidth=5.0, blocks_long=3, blocks_wide=3)
+function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7, blocks_wide=4, buildings_per_block=3)
  
     CMD_EGO = Channel{VehicleControl}(1)
     EMG = Channel(1)
@@ -12,13 +12,12 @@ function launch_mapping(; num_viewable=10, lanes=4, lanewidth=5.0, blocks_long=3
     SENSE_EGO = Channel{OracleMeas}(1)
     SENSE_LIDAR = Channel{PointCloud}(1)
 
-    road, buildings = random_grid(lanes=lanes, lanewidth=lanewidth, blocks_long=blocks_long, blocks_wide=blocks_wide)
+    road, buildings = random_grid(lanes=lanes, lanewidth=lanewidth, blocks_long=blocks_long, blocks_wide=blocks_wide, buildings_per_block=buildings_per_block)
 
     m1 = Bicycle(state=MVector{4,Float64}(0,-(lanes-1 + 0.5)*lanewidth,20,0), channel=CMD_EGO)
 
     movables = Dict([1:1+length(buildings)]....=> [m1; buildings])
     num_viewable = min(num_viewable, length(movables))
-
 
     oracle = Oracle(1, false, SENSE_EGO)
     lidar = Lidar(20, [π/8,], [0,0,1.0], 20, 1, SENSE_LIDAR) 
@@ -44,7 +43,7 @@ function launch_mapping(; num_viewable=10, lanes=4, lanewidth=5.0, blocks_long=3
 
     cam = (; x=Observable(0.0), y=Observable(0.0), θ=Observable(0.0))
 
-    camera_pos = @lift Vec3{Float32}($(cam.x)-20*cos($(cam.θ)), $(cam.y)-20*sin($(cam.θ)), 10)
+    camera_pos = @lift Vec3{Float32}($(cam.x)-20*cos($(cam.θ)), $(cam.y)-20*sin($(cam.θ)), 5)
     lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
     @lift update_cam!(scene, $camera_pos, $lookat)
 
@@ -54,9 +53,8 @@ function launch_mapping(; num_viewable=10, lanes=4, lanewidth=5.0, blocks_long=3
     
     @sync begin
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
-        #@async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @async localize(SENSE_LIDAR, EMG, scene, lidar, road)
-        @async simulate(sim, EMG; disp=false, check_collision=false)
+        @async simulate(sim, EMG; disp=false, check_collision=true)
         @async keyboard_broadcaster(KEY, EMG)
     end
     nothing

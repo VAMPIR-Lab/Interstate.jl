@@ -1,5 +1,6 @@
 function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, scene, camera_array, road)
     lines = []
+
     while true
         sleep(0.001)
         if length(EMG.data) > 0
@@ -27,6 +28,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, scene, ca
 
         tracks = Dict{Int, OracleMeas}()
         #TODO your code here
+
         
         while length(TRACKS.data) > 0
             take!(TRACKS)

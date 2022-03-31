@@ -60,7 +60,8 @@ function insert_random_building!(buildings, x_range, y_range)
         x = x_range[1] + rand()*(x_range[2]-x_range[1])
         y = y_range[1] + rand()*(y_range[2]-y_range[1])
         position=[x,y]
-        heading = rand()*2*pi-pi
+        #heading = rand()*2*pi-pi
+        heading = 0.0
         width = 5.0 + rand()*10.0
         length = 5.0 + rand()*10.0
         height = 10.0 + rand()*20.0
@@ -73,7 +74,7 @@ function insert_random_building!(buildings, x_range, y_range)
         else
             tries += 1
         end
-        if tries > 20
+        if tries > 50
             error("Can't make a random building, try different sizes")
         end
     end

@@ -96,7 +96,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     @sync begin
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1))
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG; disp=false)
+        @async simulate(sim, EMG; disp=false, check_road_violation=[1,])
         @async keyboard_broadcaster(KEY, EMG)
     end
     nothing

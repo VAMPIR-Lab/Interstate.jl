@@ -5,7 +5,7 @@ using StaticArrays
 using Polyhedra
 using Rotations
 
-function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=30.0, lanes=4, lanewidth=5.0)
+function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
  
     CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
     TRACKS = Channel{Dict{Int, OracleMeas}}(1)
@@ -46,9 +46,9 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
-    cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
-    camera_pos_1 = SVector{3,Float64}(loop_radius/2.0, loop_radius, 10.0)
-    camera_pos_2 = SVector{3,Float64}(loop_radius/3.0, loop_radius, 10.0)
+    cam1 = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
+    camera_pos_1 = SVector{3,Float64}(5.0/6*loop_radius, loop_radius, 20.0)
+    camera_pos_2 = SVector{3,Float64}(3.0/4*loop_radius, loop_radius, 20.0)
     lookat = SVector{3,Float64}(0, 0, 0)
     update_cam!(scene, camera_pos_1, lookat)
 
