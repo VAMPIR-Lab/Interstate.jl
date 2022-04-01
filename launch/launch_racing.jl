@@ -7,9 +7,12 @@ using Polyhedra
 function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=100.0, lanes=3, lanewidth=5.0)
  
     CMD_EGO = Channel{VehicleControl}(1)
-    CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
+    CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
     EMG = Channel(1)
     KEY = Channel(1)
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
+    SENSE_EGO = Channel{OracleMeas}(1)
+    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
 
     if loop
         road = simple_loop(radius=loop_radius, lanes=lanes, lanewidth=lanewidth)
@@ -19,7 +22,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
    
     num_viewable = min(num_viewable, num_agents)
 
-    m1 = Bicycle(state=MVector{4,Float64}(0,-(lanes-1 + 0.5)*lanewidth,20,0), channel=CMD_EGO)
+    m1 = Bicycle(state=MVector{4,Float64}(0,-(lanes-2 + 0.5)*lanewidth,20,0), channel=CMD_EGO)
     movables = Dict(1=>m1)
     
     for i ∈ 2:num_agents
@@ -30,6 +33,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         speed = 10.0 + rand()*20.0
         lane = rand(1:lanes)
         color = parse(RGB, "rgb"*string(Tuple(rand(0:255,3))))
+        channel = Channel{VehicleControl}(1)
         if loop
             θ = -π/2.0
             while -π/2.0-π/6.0 ≤ θ ≤ -π/2.0+π/6.0
@@ -55,11 +59,10 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
                                color=color,
                                target_vel=speed,
                                target_lane=lane,
-                               channel=CMD_FLEET)
+                               channel=channel)
+        CMD_FLEET[i] = channel
     end
     
-    SENSE_EGO = Channel{OracleMeas}(1)
-    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
     s1 = Oracle(1, false, SENSE_EGO) 
     s2 = FleetOracle(Set(2:num_agents), SENSE_FLEET)
     sensors = Dict(1=>s1, 2=>s2)
@@ -89,14 +92,15 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
     @lift update_cam!(scene, $camera_pos, $lookat)
 
-    sim = Simulator(movables, sensors, view_objs, cam, road)
+    sim = Simulator(movables,view_objs, cam, road)
 
     display(scene)
     
     @sync begin
-        @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1))
+        @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1), θ_step = 0.3)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG; disp=false, check_road_violation=[1,])
+        @async simulate(sim, EMG, SIM_ALL; disp=true, check_road_violation=[1,])
+        @async sense(SIM_ALL, EMG, sensors, road)
         @async keyboard_broadcaster(KEY, EMG)
     end
     nothing

@@ -1,4 +1,4 @@
-function localize(SENSE::Channel, EMG::Channel, scene, lidar, road)
+function localize(SENSE::Channel, EMG::Channel, scene, lidar, road; disp=false)
     lines = []
     while true
         sleep(0.001)
@@ -11,12 +11,13 @@ function localize(SENSE::Channel, EMG::Channel, scene, lidar, road)
         else
             continue
         end
+        if disp
+            for line ∈ lines
+                delete!(scene, line)
+            end
 
-        for line ∈ lines
-            delete!(scene, line)
+            lines = draw_lidar_beams_2_world(scene, lidar, meas)
         end
-
-        lines = draw_lidar_beams_2_world(scene, lidar, meas)
 
         # TODO
         # Your code here

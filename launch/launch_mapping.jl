@@ -9,6 +9,7 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
     CMD_EGO = Channel{VehicleControl}(1)
     EMG = Channel(1)
     KEY = Channel(1)
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
     SENSE_EGO = Channel{OracleMeas}(1)
     SENSE_LIDAR = Channel{PointCloud}(1)
 
@@ -20,9 +21,9 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
     num_viewable = min(num_viewable, length(movables))
 
     oracle = Oracle(1, false, SENSE_EGO)
-    lidar = Lidar(20, [π/8,], [0,0,1.0], 20, 1, SENSE_LIDAR) 
-    #sensors = Dict(1=>oracle, 2=>lidar)
-    sensors = Dict(1=>oracle)
+    lidar = Lidar(20, [π/10.0, π/8,], [0,0,1.0], 50.0, 1, SENSE_LIDAR) 
+    sensors = Dict(1=>oracle, 2=>lidar)
+    #sensors = Dict(1=>oracle)
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
     cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
@@ -47,14 +48,15 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
     lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
     @lift update_cam!(scene, $camera_pos, $lookat)
 
-    sim = Simulator(movables, sensors, view_objs, cam, road)
+    sim = Simulator(movables, view_objs, cam, road)
 
     display(scene)
     
     @sync begin
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
-        @async localize(SENSE_LIDAR, EMG, scene, lidar, road)
-        @async simulate(sim, EMG; disp=false, check_collision=true)
+        @async localize(SENSE_LIDAR, EMG, scene, lidar, road, disp=false)
+        @async simulate(sim, EMG, SIM_ALL; disp=true, check_collision=true)
+        @async sense(SIM_ALL, EMG, sensors, road)
         @async keyboard_broadcaster(KEY, EMG)
     end
     nothing

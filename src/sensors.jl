@@ -1,3 +1,23 @@
+
+function sense(simulator_state::Channel, emg::Channel, sensors, road)  
+    while true
+        sleep(0.001)
+        if length(emg.data) > 0
+            return
+        end
+        if length(simulator_state.data) > 0 
+            (timestamp, movables) = fetch(simulator_state)
+        else
+            continue
+        end
+        for (id, sensor) ∈ sensors
+            update_sensor(sensor, timestamp, movables, road)
+        end
+    end
+end
+
+
+
 abstract type Sensor end
 abstract type Observation end
 
@@ -214,7 +234,7 @@ function expected_lidar_return(pos, α_min, ϕ, θ, ms, road)
     pt_min = pos + α_min * beam
     for (id, m) ∈ ms
         box = Box3(m)
-        (; collision, p, α) = intersect(box, ray)
+        (; collision, p, α) = intersect(box, ray, max_dist=α_ground)
         if collision && α < α_min
             α_min = α
             pt_min = p

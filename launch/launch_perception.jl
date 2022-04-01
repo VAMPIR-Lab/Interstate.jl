@@ -7,10 +7,13 @@ using Rotations
 
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
  
-    CMD_FLEET = Channel{Dict{Int, VehicleControl}}(1)
+    CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
     TRACKS = Channel{Dict{Int, OracleMeas}}(1)
     EMG = Channel(1)
     KEY = Channel(1)
+    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
+    SENSE_CAM = Channel{Dict{Int, Vector{BBoxMeas}}}(1)
 
     road = simple_loop(radius=loop_radius, lanes=lanes, lanewidth=lanewidth)
    
@@ -32,6 +35,7 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
         y = loop_radius+sin(θ)*rad
         state = MVector{4, Float64}(x, y, speed, θ+π/2.0)
         control = MVector{2, Float64}(0.0, 0.0)
+        channel = Channel{VehicleControl}(1)
         movables[i] = Unicycle(state=state,
                                control=control,
                                width=width,
@@ -41,7 +45,8 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
                                color=color,
                                target_vel=speed,
                                target_lane=lane,
-                               channel=CMD_FLEET)
+                               channel=channel)
+        CMD_FLEET[i] = channel
     end
     
     
@@ -52,8 +57,6 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     lookat = SVector{3,Float64}(0, 0, 0)
     update_cam!(scene, camera_pos_1, lookat)
 
-    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
-    SENSE_CAM = Channel{Dict{Int, Vector{BBoxMeas}}}(1)
     s1 = FleetOracle(Set(1:num_agents), SENSE_FLEET)
     c1 = PinholeCamera(focal_len=0.05, sx=.02, sy=.01, camera_pos=camera_pos_1, lookat=lookat, channel=Channel(0))
     c2 = PinholeCamera(focal_len=0.05, sx=.02, sy=.01, camera_pos=camera_pos_2, lookat=lookat, channel=Channel(0))
@@ -78,14 +81,15 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
         GLMakie.mesh!(scene, mesh, color=color)
     end
 
-    sim = Simulator(movables, sensors, view_objs, nothing, road)
+    sim = Simulator(movables, view_objs, nothing, road)
 
     display(scene)
     
     @sync begin
         @async object_tracker(SENSE_CAM, TRACKS, EMG, scene, camera_array, road)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG; disp=false, check_collision=false)
+        @async simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
+        @async sense(SIM_ALL, EMG, sensors, road)
         @async keyboard_broadcaster(KEY, EMG)
     end
     #GLMakie.destroy!(GLMakie.global_gl_screen())

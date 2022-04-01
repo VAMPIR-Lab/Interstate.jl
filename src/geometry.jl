@@ -90,11 +90,17 @@ function Ray3(pos, beam)
     Ray3(pos..., beam...)
 end
 
-function intersect(ray::Ray3, box::Box3)
-    intersect(box, ray)
+function intersect(ray::Ray3, box::Box3; max_dist = 100.0)
+    intersect(box, ray, max_dist=max_dist)
 end
 
-function intersect(box::Box3, ray::Ray3)
+function intersect(box::Box3, ray::Ray3; max_dist = 100.0)
+    del = [box.x-ray.x, box.y-ray.y, box.z-ray.z]
+    dist = norm(del)
+    if dist > max_dist
+        return (; collision=false, dist=0, p=[0,0,0], α=0)
+    end
+
     I₃ = sparse(1.0I, 3, 3)
     P = [I₃ -I₃;
         -I₃ I₃]
@@ -197,7 +203,7 @@ function box_corners(b::Box2)
     center = [b.x, b.y]
     c = cos(b.θ)
     s = sin(b.θ)
-    A = [c s; -s c]
+    A = [c -s; s c]
     p1 = SVector{2,Float64}(center + A * [-b.lr, -b.w/2])
     p2 = SVector{2,Float64}(center + A * [-b.lr, b.w/2])
     p3 = SVector{2,Float64}(center + A * [b.lf, -b.w/2])

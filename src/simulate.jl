@@ -60,18 +60,16 @@ end
 
 struct Simulator
     movables::Dict{Int,Movable}
-    sensors::Dict{Int,Sensor}
     viewables
     camera
     road
 end
 
-function simulate(sim::Simulator, e;
+function simulate(sim::Simulator, emg, channel;
                   Δ=0.001,              
                   disp=false,
                   check_collision=true,
                   check_road_violation=[],
-                  K = 0.01,
                   print_increment=0.01,
                   )
 
@@ -80,42 +78,27 @@ function simulate(sim::Simulator, e;
     display_time = 0.0
     num_viewed = length(sim.viewables)
     closest_ids = zeros(Int, num_viewed)
-    if length(sim.movables) > 1
-        CMD_FLEET = sim.movables[2].channel
-    else
-        CMD_FLEET = Channel(0)
-    end
     #try
         while true
             sleep(0.001)
             simulated_time += Δ
             display_time += Δ
 
-            if length(CMD_FLEET.data) > 0
-                fleet_control = take!(CMD_FLEET)
-                for (id, cmd) ∈ fleet_control
-                    sim.movables[id].control .= cmd
-                end
-            end  
             for (id, movable) ∈ sim.movables
-                if id == 1
-                    update_command!(movable)
-                end
-
+                update_command!(movable)
                 update_state!(movable, Δ)
             end
 
+            while length(channel.data) > 0
+                take!(channel)
+            end
+            put!(channel, (simulated_time, sim.movables))
 
             find_closest!(closest_ids, sim.movables, num_viewed) 
-
-            for (id, sensor) ∈ sim.sensors
-                update_sensor(sensor, simulated_time, sim.movables,sim.road)
-            end
-
             if check_collision && collision(sim.movables, closest_ids)
                 println()
                 println("Collision!")
-                put!(e, 1)
+                put!(emg, 1)
                 return
             end
 
@@ -124,7 +107,7 @@ function simulate(sim::Simulator, e;
                     if road_violation(sim.movables[id], sim.road)
                         println()
                         println("Road boundary violation!")
-                        put!(e, 1)
+                        put!(emg, 1)
                         return
                     end
                 end
@@ -145,7 +128,7 @@ function simulate(sim::Simulator, e;
                 end
                 display_time -= print_increment
             end
-            if length(e.data) > 0
+            if length(emg.data) > 0
                 println()
                 println("Interrupt!")
                 return
