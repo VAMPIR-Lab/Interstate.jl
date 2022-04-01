@@ -21,7 +21,8 @@ include("keyboard_control.jl")
 include("perception.jl")
 include("geometry.jl")
 include("localize.jl")
+include("visualization.jl")
 
-export Movable, Unicycle, Bicycle, VehicleControl, sense, Oracle, FleetOracle, OracleMeas, Simulator, simulate, keyboard_broadcaster, get_corners, speed, heading, controller, random_road, random_grid, simple_loop, visualize_road, fleet_controller, get_transform, BBoxMeas, PinholeCamera, CameraArray, object_tracker, Lidar, PointCloud, localize, ChannelLock
+export Movable, Unicycle, Bicycle, VehicleControl, sense, Oracle, FleetOracle, OracleMeas, Simulator, simulate, keyboard_broadcaster, get_corners, speed, heading, controller, random_road, random_grid, simple_loop, visualize_road, fleet_controller, get_transform, BBoxMeas, PinholeCamera, CameraArray, object_tracker, Lidar, PointCloud, localize, ChannelLock, visualize
 
 end

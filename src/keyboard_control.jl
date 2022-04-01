@@ -35,7 +35,7 @@ function controller(KEY::ChannelLock, CMD::ChannelLock, SENSE::ChannelLock, EMG:
     println("Press 'l' to turn right.")
 
     while true
-        sleep(0.001)
+        sleep(0)
         @return_if_told(EMG)
         
         key = ' '

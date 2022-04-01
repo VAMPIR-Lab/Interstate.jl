@@ -49,7 +49,7 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
     lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
     @lift update_cam!(scene, $camera_pos, $lookat)
 
-    sim = Simulator(movables, view_objs, cam, road)
+    sim = Simulator(movables, road)
 
     display(scene)
     
@@ -57,6 +57,7 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
         @async localize(SENSE_LIDAR, EMG, scene, lidar, road, disp=false)
         @async simulate(sim, EMG, SIM_ALL; disp=true, check_collision=true)
+        @async visualize(SIM_ALL, EMG, view_objs, cam)
         @async sense(SIM_ALL, EMG, sensors_oracle, road)
         @spawn sense(SIM_ALL, EMG, sensors_lidar, road)
         @async keyboard_broadcaster(KEY, EMG)

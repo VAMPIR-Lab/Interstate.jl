@@ -1,9 +1,8 @@
 function localize(SENSE::ChannelLock, EMG::ChannelLock, scene, lidar, road; disp=false)
     lines = []
     while true
-        sleep(0.001)
+        sleep(0)
         @return_if_told(EMG)
-        meas = @fetch_or_continue(SENSE)
         if disp
             for line ∈ lines
                 delete!(scene, line)

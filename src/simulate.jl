@@ -1,26 +1,15 @@
-function find_closest!(ids, movables, n)
-    dists = []
-    for (i, m) ∈ movables
-        push!(dists, (norm(position(movables[1])-position(movables[i])), i))
-    end
-
-    sort!(dists; alg=Base.Sort.PartialQuickSort(n), by=x->x[1])
-    for i ∈ 1:length(ids)
-        ids[i] = dists[i][2]
-    end
-end
-
 function collision(m1::Movable, m2::Movable)
     b1 = Box2(m1)
     b2 = Box2(m2)
     intersect(b1,b2).collision
 end
 
-function collision(movables, closest_ids)
-    for id ∈ closest_ids
-        if id != 1 
-            col = collision(movables[1], movables[id])
-            if col
+function collision(movables; max_dist=50.0)
+    pos1 = position(movables[1])
+    for (id, movable) ∈ movables
+        if id != 1
+            dist = norm(pos1 - position(movable))
+            if dist < max_dist && collision(movables[1], movable)
                 return true
             end
         end
@@ -50,18 +39,8 @@ function road_violation(m::Movable, road)
     end
 end
 
-function update_display!(viewables, movables, closest_ids)
-    for (i,id) ∈ enumerate(closest_ids)
-        pts = get_corners(movables[id])
-        viewables[i][1][] = pts
-        viewables[i][2][] = movables[id].color
-    end
-end
-
 struct Simulator
     movables::Dict{Int,Movable}
-    viewables
-    camera
     road
 end
 
@@ -76,11 +55,10 @@ function simulate(sim::Simulator, emg, channel;
     t0 = time_ns()
     simulated_time = 0.0
     display_time = 0.0
-    num_viewed = length(sim.viewables)
-    closest_ids = zeros(Int, num_viewed)
+    println("Simulating on thread ", Threads.threadid())
     #try
         while true
-            sleep(0.001)
+            sleep(0)
             @return_if_told(emg)
 
             simulated_time += Δ
@@ -93,8 +71,8 @@ function simulate(sim::Simulator, emg, channel;
            
             @replace(channel, (simulated_time, sim.movables))
 
-            find_closest!(closest_ids, sim.movables, num_viewed) 
-            if check_collision && collision(sim.movables, closest_ids)
+            #find_closest!(closest_ids, sim.movables, num_viewed) 
+            if check_collision && collision(sim.movables)
                 println()
                 println("Collision!")
                 @replace(emg, 1)
@@ -112,12 +90,6 @@ function simulate(sim::Simulator, emg, channel;
                 end
             end
 
-            update_display!(sim.viewables, sim.movables, closest_ids)
-            if !isnothing(sim.camera)
-                sim.camera.x[] = sim.movables[1].state[1]
-                sim.camera.y[] = sim.movables[1].state[2]
-                sim.camera.θ[] = sim.movables[1].state[4]
-            end
 
             if display_time > print_increment
                 if disp

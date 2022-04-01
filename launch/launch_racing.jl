@@ -93,7 +93,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
     @lift update_cam!(scene, $camera_pos, $lookat)
 
-    sim = Simulator(movables,view_objs, cam, road)
+    sim = Simulator(movables, road)
 
     display(scene)
     
@@ -101,7 +101,8 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1), θ_step = 0.3)
         @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @async simulate(sim, EMG, SIM_ALL; disp=false, check_road_violation=[1,])
-        @spawn sense(SIM_ALL, EMG, sensors, road)
+        @async visualize(SIM_ALL, EMG, view_objs, cam)
+        @async sense(SIM_ALL, EMG, sensors, road)
         @async keyboard_broadcaster(KEY, EMG) 
     end
     nothing
