@@ -12,7 +12,7 @@ Base.@kwdef struct Unicycle <: Movable
     color = parse(RGB, "rgb"*string((0,0,255)))
     target_vel::Float64 = 0
     target_lane::Int = 0
-    channel = Channel(0)
+    channel::ChannelLock{VehicleControl} = ChannelLock{VehicleControl}(0)
 end
 
 Base.@kwdef struct Bicycle <: Movable
@@ -25,7 +25,7 @@ Base.@kwdef struct Bicycle <: Movable
     color = parse(RGB, "rgb"*string((0,0,255)))
     target_vel::Float64 = 0
     target_lane::Int = 0
-    channel = Channel(0)
+    channel::ChannelLock{VehicleControl} = ChannelLock{VehicleControl}(0)
 end
 
 Base.@kwdef struct Building <: Movable
@@ -35,7 +35,7 @@ Base.@kwdef struct Building <: Movable
     length::Float64 = 10.0
     height::Float64 = 20.0
     color = parse(RGB, "rgb"*string((0,0,0)))
-    channel = Channel(0)
+    channel::ChannelLock{Int} = ChannelLock{Int}(0)
 end
 
 function position(m::Building)
@@ -66,7 +66,12 @@ function insert_random_building!(buildings, x_range, y_range)
         length = 5.0 + rand()*10.0
         height = 10.0 + rand()*20.0
         color = parse(RGB, "rgb"*string(Tuple(rand(0:255,3))))
-        building = Building(position, heading, width, length, height, color, Channel(0))
+        building = Building(position=position, 
+                            heading=heading, 
+                            width=width, 
+                            length=length, 
+                            height=height, 
+                            color=color)
         box = Box2(building)
         if inside(box, block) && !any(intersect(box, other).collision for other ∈ existing)
             push!(buildings, building)
@@ -79,7 +84,6 @@ function insert_random_building!(buildings, x_range, y_range)
         end
     end
 end
-
 
 function state(m)
     m.state
@@ -105,9 +109,10 @@ function get_corners(m)
 end
 
 function update_command!(m)
-    if length(m.channel.data) > 0
-        m.control .= take!(m.channel)
-    end  
+    m.control .= @fetch_or_return(m.channel)
+end
+function update_command!(m::Building)
+    return
 end
 
 function update_state!(m::Unicycle, Δ)

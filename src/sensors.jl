@@ -1,17 +1,16 @@
 
-function sense(simulator_state::Channel, emg::Channel, sensors, road)  
+function sense(simulator_state::ChannelLock, emg::ChannelLock, sensors, road)  
+    lk = ReentrantLock()
+    fetched = false
+    timestamp = 0.0
+    movables = Dict{Int, Movable}()
     while true
         sleep(0.001)
-        if length(emg.data) > 0
-            return
-        end
-        if length(simulator_state.data) > 0 
-            (timestamp, movables) = fetch(simulator_state)
-        else
-            continue
-        end
+        @return_if_told(emg)
+        (timestamp, movables) = @fetch_or_continue(simulator_state)
         for (id, sensor) ∈ sensors
-            update_sensor(sensor, timestamp, movables, road)
+            meas = update_sensor(sensor, timestamp, movables, road)
+            @replace(sensor.channel, meas)
         end
     end
 end
@@ -24,7 +23,7 @@ abstract type Observation end
 struct Oracle<:Sensor
     m_id::Int
     find_road_segment::Bool
-    channel::Channel
+    channel::ChannelLock
 end
 
 struct OracleMeas <: Observation 
@@ -39,7 +38,7 @@ end
 
 struct FleetOracle<:Sensor
     m_ids
-    channel
+    channel::ChannelLock
 end
 
 struct BBoxMeas <: Observation
@@ -47,13 +46,13 @@ struct BBoxMeas <: Observation
     top::Float64
     right::Float64
     bottom::Float64
-    time
+    time::Float64
 end
 
 struct PointCloud <: Observation
     points::Vector{SVector{3, Float64}}
     origin::SVector{3, Float64}
-    time
+    time::Float64
 end
     
 
@@ -63,12 +62,11 @@ struct PinholeCamera<:Sensor
     sy::Float64
     R::SMatrix{3,3,Float64}
     t::SVector{3, Float64}
-    channel::Channel
 end
 
 struct CameraArray<:Sensor
     cameras::Dict{Int, PinholeCamera}
-    channel::Channel
+    channel::ChannelLock
 end
 
 struct Lidar<:Sensor
@@ -77,7 +75,7 @@ struct Lidar<:Sensor
     offset::SVector{3, Float64} # relative to top center of movable[m_id]
     max_beam_length::Float64
     m_id::Int
-    channel::Channel
+    channel::ChannelLock
 end
 
 function get_transform(pos, lookat)
@@ -92,9 +90,9 @@ function get_transform(pos, lookat)
     R', t
 end
 
-function PinholeCamera(; focal_len::Float64=0.05, sx::Float64=10, sy::Float64=10, camera_pos::SVector{3, Float64}, lookat::SVector{3, Float64}, channel::Channel)
+function PinholeCamera(; focal_len::Float64=0.05, sx::Float64=10, sy::Float64=10, camera_pos::SVector{3, Float64}, lookat::SVector{3, Float64})
     R, t = get_transform(camera_pos, lookat)
-    PinholeCamera(focal_len, sx, sy, R, t, channel)
+    PinholeCamera(focal_len, sx, sy, R, t)
 end
 
 function transform!(camera::PinholeCamera, pts...)
@@ -170,10 +168,6 @@ function update_sensor(sensor::Oracle, gt, ms, road)
     m = ms[sensor.m_id]
     seg = sensor.find_road_segment ? road_segment(m, road) : -1
     meas = OracleMeas(position(m), speed(m), heading(m), seg, m.target_lane, m.target_vel, gt)
-    while length(sensor.channel.data) > 0
-        take!(sensor.channel)
-    end
-    put!(sensor.channel, meas)
 end
 
 function update_sensor(sensor::FleetOracle, gt, ms, road)
@@ -183,10 +177,7 @@ function update_sensor(sensor::FleetOracle, gt, ms, road)
         omeas = OracleMeas(position(m), speed(m), heading(m), road_segment(m,road), m.target_lane, m.target_vel, gt)
         meas[id] = omeas
     end
-    while length(sensor.channel.data) > 0
-        take!(sensor.channel)
-    end
-    put!(sensor.channel, meas)
+    meas
 end
 
 function get_camera_meas(sensor, gt, ms, road)
@@ -204,10 +195,6 @@ end
 
 function update_sensor(sensor::PinholeCamera, gt, ms, road)
     meas = get_camera_meas(sensor, gt, ms, road)
-    while length(sensor.channel.data) > 0
-        take!(sensor.channel)
-    end
-    put!(sensor.channel, meas)
 end
 
 function update_sensor(sensor::CameraArray, gt, ms, road)
@@ -216,10 +203,7 @@ function update_sensor(sensor::CameraArray, gt, ms, road)
         m = get_camera_meas(camera, gt, ms, road)
         meas[id] = m
     end
-    while length(sensor.channel.data) > 0
-        take!(sensor.channel)
-    end
-    put!(sensor.channel, meas)
+    meas
 end
 
 function expected_lidar_return(pos, α_min, ϕ, θ, ms, road)
@@ -234,7 +218,8 @@ function expected_lidar_return(pos, α_min, ϕ, θ, ms, road)
     pt_min = pos + α_min * beam
     for (id, m) ∈ ms
         box = Box3(m)
-        (; collision, p, α) = intersect(box, ray, max_dist=α_ground)
+        #(; collision, p, α) = intersect(box, ray, max_dist=α_ground)
+        (; collision, p, α) = intersect(box, ray, max_dist=Inf)
         if collision && α < α_min
             α_min = α
             pt_min = p
@@ -257,9 +242,4 @@ function update_sensor(sensor::Lidar, gt, ms, road)
         end
     end
     meas = PointCloud(pts, lidar_pos, gt)
-    while length(sensor.channel.data) > 0
-        take!(sensor.channel)
-    end
-    put!(sensor.channel, meas)
-    
 end

@@ -81,6 +81,8 @@ function simulate(sim::Simulator, emg, channel;
     #try
         while true
             sleep(0.001)
+            @return_if_told(emg)
+
             simulated_time += Δ
             display_time += Δ
 
@@ -88,17 +90,14 @@ function simulate(sim::Simulator, emg, channel;
                 update_command!(movable)
                 update_state!(movable, Δ)
             end
-
-            while length(channel.data) > 0
-                take!(channel)
-            end
-            put!(channel, (simulated_time, sim.movables))
+           
+            @replace(channel, (simulated_time, sim.movables))
 
             find_closest!(closest_ids, sim.movables, num_viewed) 
             if check_collision && collision(sim.movables, closest_ids)
                 println()
                 println("Collision!")
-                put!(emg, 1)
+                @replace(emg, 1)
                 return
             end
 
@@ -107,7 +106,7 @@ function simulate(sim::Simulator, emg, channel;
                     if road_violation(sim.movables[id], sim.road)
                         println()
                         println("Road boundary violation!")
-                        put!(emg, 1)
+                        @replace(emg, 1)
                         return
                     end
                 end
@@ -127,11 +126,6 @@ function simulate(sim::Simulator, emg, channel;
                     @printf("Loop time: %f.", Δ)
                 end
                 display_time -= print_increment
-            end
-            if length(emg.data) > 0
-                println()
-                println("Interrupt!")
-                return
             end
             err = (time_ns()-t0)/1e9 - simulated_time
             Δ = max(0.0, min(5e-1, err))

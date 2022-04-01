@@ -3,15 +3,16 @@ using GLMakie
 using Colors
 using StaticArrays
 using Polyhedra
+using .Threads
 
 function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7, blocks_wide=4, buildings_per_block=3)
  
-    CMD_EGO = Channel{VehicleControl}(1)
-    EMG = Channel(1)
-    KEY = Channel(1)
-    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
-    SENSE_EGO = Channel{OracleMeas}(1)
-    SENSE_LIDAR = Channel{PointCloud}(1)
+    CMD_EGO = ChannelLock{VehicleControl}(1)
+    EMG = ChannelLock{Int}(1)
+    KEY = ChannelLock{Char}(1)
+    SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
+    SENSE_EGO = ChannelLock{OracleMeas}(1)
+    SENSE_LIDAR = ChannelLock{PointCloud}(1)
 
     road, buildings = random_grid(lanes=lanes, lanewidth=lanewidth, blocks_long=blocks_long, blocks_wide=blocks_wide, buildings_per_block=buildings_per_block)
 
@@ -22,8 +23,8 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
 
     oracle = Oracle(1, false, SENSE_EGO)
     lidar = Lidar(20, [π/10.0, π/8,], [0,0,1.0], 50.0, 1, SENSE_LIDAR) 
-    sensors = Dict(1=>oracle, 2=>lidar)
-    #sensors = Dict(1=>oracle)
+    sensors_oracle = Dict(1=>oracle)
+    sensors_lidar = Dict(2=>lidar)
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
     cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
@@ -56,7 +57,8 @@ function launch_mapping(; num_viewable=30, lanes=2, lanewidth=5.0, blocks_long=7
         @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
         @async localize(SENSE_LIDAR, EMG, scene, lidar, road, disp=false)
         @async simulate(sim, EMG, SIM_ALL; disp=true, check_collision=true)
-        @async sense(SIM_ALL, EMG, sensors, road)
+        @async sense(SIM_ALL, EMG, sensors_oracle, road)
+        @spawn sense(SIM_ALL, EMG, sensors_lidar, road)
         @async keyboard_broadcaster(KEY, EMG)
     end
     nothing

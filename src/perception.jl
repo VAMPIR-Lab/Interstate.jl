@@ -1,17 +1,10 @@
-function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, scene, camera_array, road)
+function object_tracker(SENSE::ChannelLock, TRACKS::ChannelLock, EMG::ChannelLock, scene, camera_array, road)
     lines = []
 
     while true
         sleep(0.001)
-        if length(EMG.data) > 0
-            return
-        end
-
-        if length(SENSE.data) > 0
-            meas = fetch(SENSE)
-        else
-            continue
-        end
+        @return_if_told(EMG)
+        meas = @fetch_or_continue(SENSE)
 
         for line ∈ lines
             delete!(scene, line)
@@ -29,10 +22,6 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, scene, ca
         tracks = Dict{Int, OracleMeas}()
         #TODO your code here
 
-        
-        while length(TRACKS.data) > 0
-            take!(TRACKS)
-        end
-        put!(TRACKS, tracks)
+        @replace(TRACKS, tracks)    
     end
 end
