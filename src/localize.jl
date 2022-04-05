@@ -6,11 +6,11 @@ function localize(SENSE::ChannelLock, LOCALIZE::ChannelLock, EMG::ChannelLock, l
         # TODO
         # Your code here
         
-        meas = @fetch_or_continue(SENSE)
+        #meas = @fetch_or_continue(SENSE)
 
-        list_of_points = meas.points
-        lidar_center = meas.origin
-        time_of_meas = meas.time
+        #list_of_points = meas.points
+        #lidar_center = meas.origin
+        #time_of_meas = meas.time
 
         
         # ego_state = ... 

@@ -61,10 +61,10 @@ function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=
         end
         @spawn simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
         @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
-        @spawn localize(SENSE_LIDAR, LOCALIZE, EMG, lidar, road, buildings)
         @spawn sense(SIM_ALL, EMG, sensors_oracle, road)
         @spawn sense(SIM_ALL, EMG, sensors_lidar, road)
         @spawn keyboard_broadcaster(KEY, EMG)
+        @spawn localize(SENSE_LIDAR, LOCALIZE, EMG, lidar, road, buildings)
     end
     nothing
 end
