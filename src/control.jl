@@ -55,11 +55,11 @@ function keyboard_controller(KEY::ChannelLock,
     end
 end
 
-function autonomous_controller(CMD::ChannelLock, 
-                               SENSE::ChannelLock, 
-                               SENSE_FLEET::ChannelLock, 
-                               EMG::ChannelLock,
-                               road)
+function controller(CMD::ChannelLock, 
+                    SENSE::ChannelLock, 
+                    SENSE_FLEET::ChannelLock, 
+                    EMG::ChannelLock,
+                    road)
     local ego_meas
     local fleet_meas
 
@@ -68,7 +68,7 @@ function autonomous_controller(CMD::ChannelLock,
         @return_if_told(EMG)
         
         @try_update(SENSE, ego_meas)
-        @try_update(SENSE, fleet_meas)
+        @try_update(SENSE_FLEET, fleet_meas)
 
         cmd = [0, 0] # change to your solution!
         @replace(CMD, cmd)
