@@ -13,7 +13,7 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
     SENSE_EGO = ChannelLock{OracleMeas}(1)
     SENSE_FLEET = ChannelLock{Dict{Int,OracleMeas}}(1)
-    TRACKS = ChannelLock{Dict{Int, OracleMeas}}(1)
+    TRACKS = ChannelLock{TracksMessage}(1)
     SENSE_CAM = ChannelLock{Dict{Int, Vector{BBoxMeas}}}(1)
 
     road = simple_loop(radius=loop_radius, lanes=lanes, lanewidth=lanewidth)

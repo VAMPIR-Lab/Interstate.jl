@@ -35,6 +35,32 @@ macro fetch_or_continue(clk)
     end
 end
 
+macro try_update(clk, value)
+    quote
+        local channellock = $(esc(clk))
+        local value = $(esc(value))
+        if trylock(channellock.channel)
+            if isready(channellock.channel)
+                value = fetch(channellock.channel) 
+            end
+            unlock(channellock.channel)
+        end
+    end
+end
+
+macro take_or_default(clk, default)
+    quote
+        local channellock = $(esc(clk))
+        local default = $(esc(default))
+        lock(channellock.channel)
+        try
+            isready(channellock.channel) ? take!(channellock.channel) : default
+        finally
+            unlock(channellock.channel)
+        end
+    end
+end
+
 macro fetch_or_return(clk)
     quote
         local channellock = $(esc(clk))

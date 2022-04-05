@@ -1,5 +1,6 @@
-function localize(SENSE::ChannelLock, EMG::ChannelLock, lidar, road)
-    lines = []
+
+
+function localize(SENSE::ChannelLock, LOCALIZE::ChannelLock, EMG::ChannelLock, lidar, road)
     while true
         sleep(0)
         @return_if_told(EMG)
@@ -7,8 +8,8 @@ function localize(SENSE::ChannelLock, EMG::ChannelLock, lidar, road)
         # TODO
         # Your code here
         
-     
-        
+        # ego_state = ... 
+        #@replace(LOCALIZE, ego_state) 
 
     end
 end

@@ -13,6 +13,7 @@ function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=
     SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
     SENSE_EGO = ChannelLock{OracleMeas}(1)
     SENSE_LIDAR = ChannelLock{PointCloud}(1)
+    LOCALIZE = ChannelLock{OracleMeas}(1)
 
     road, buildings = random_grid(lanes=lanes, lanewidth=lanewidth, blocks_long=blocks_long, blocks_wide=blocks_wide, buildings_per_block=buildings_per_block)
 
@@ -59,8 +60,8 @@ function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=
             @async visualize(SENSE_LIDAR, EMG, lidar, scene)
         end
         @spawn simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
-        @spawn controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
-        @spawn localize(SENSE_LIDAR, EMG, lidar, road)
+        @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
+        @spawn localize(SENSE_LIDAR, LOCALIZE, EMG, lidar, road)
         @spawn sense(SIM_ALL, EMG, sensors_oracle, road)
         @spawn sense(SIM_ALL, EMG, sensors_lidar, road)
         @spawn keyboard_broadcaster(KEY, EMG)

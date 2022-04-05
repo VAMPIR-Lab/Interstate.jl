@@ -98,7 +98,8 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     @sync begin
         @async visualize(SIM_ALL, EMG, view_objs, cam)
         @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=true,check_road_violation=[1,])
-        @spawn controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1), θ_step = 0.3)
+        @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG, V=speed(m1), θ=heading(m1), θ_step=0.25)
+        #@spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road)  (YOUR SOLUTION)
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         @spawn keyboard_broadcaster(KEY, EMG) 

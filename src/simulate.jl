@@ -70,15 +70,8 @@ function simulate(sim::Simulator, emg, channel;
                 update_state!(movable, Δ)
             end
            
-            #movables_copy = deepcopy(sim.movables)
-            #movables_copy = Dict{Int, Movable}()
-            #for (id, movable) ∈ sim.movables
-            #    movables_copy[id] = copy(movable)
-            #end
             @replace(channel, (simulated_time, sim.movables))
-            #@replace(channel, (simulated_time, movables_copy))
 
-            #find_closest!(closest_ids, sim.movables, num_viewed) 
             if check_collision && collision(sim.movables)
                 println()
                 println("Collision!")
