@@ -9,6 +9,7 @@ using Printf
 using OSQP
 using LinearAlgebra
 using REPL.Terminals
+using .Threads
 
 
 include("threading.jl")

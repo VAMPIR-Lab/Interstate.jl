@@ -85,14 +85,14 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
     sim = Simulator(movables, road)
 
     display(scene)
-    println("Central thread; ",Threads.threadid())
     @sync begin
-        @async object_tracker(SENSE_CAM, TRACKS, EMG, scene, camera_array, road)
-        @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
-        @async sense(SIM_ALL, EMG, sensors, road)
         @async visualize(SIM_ALL, EMG, view_objs, nothing)
-        @async keyboard_broadcaster(KEY, EMG)
+        @async visualize(SENSE_CAM, EMG, camera_array, scene)
+        @spawn object_tracker(SENSE_CAM, TRACKS, EMG, camera_array, road)
+        @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
+        @spawn simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
+        @spawn sense(SIM_ALL, EMG, sensors, road)
+        @spawn keyboard_broadcaster(KEY, EMG)
     end
     #GLMakie.destroy!(GLMakie.global_gl_screen())
     nothing

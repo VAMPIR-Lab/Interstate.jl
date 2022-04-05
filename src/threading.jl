@@ -11,14 +11,14 @@ macro replace(clk, val)
     quote
         local channellock = $(esc(clk))
         local value = $(esc(val))
-        lock(channellock.lock)
+        lock(channellock.channel)
         try
-            while length(channellock.channel.data) > 0
+            while isready(channellock.channel)
                 take!(channellock.channel)
             end
             put!(channellock.channel, value)
         finally
-            unlock(channellock.lock)
+            unlock(channellock.channel)
         end
     end
 end
@@ -26,15 +26,11 @@ end
 macro fetch_or_continue(clk)
     quote
         local channellock = $(esc(clk))
-        lock(channellock.lock)
+        lock(channellock.channel)
         try
-            if length(channellock.channel.data) > 0
-                fetch(channellock.channel)
-            else
-                continue
-            end
+            isready(channellock.channel) ? fetch(channellock.channel) : continue
         finally
-            unlock(channellock.lock)
+            unlock(channellock.channel)
         end
     end
 end
@@ -42,7 +38,7 @@ end
 macro fetch_or_return(clk)
     quote
         local channellock = $(esc(clk))
-        lock(channellock.lock)
+        lock(channellock.channel)
         try
             if length(channellock.channel.data) > 0
                 fetch(channellock.channel)
@@ -50,7 +46,7 @@ macro fetch_or_return(clk)
                 return
             end
         finally
-            unlock(channellock.lock)
+            unlock(channellock.channel)
         end
     end
 end
@@ -58,17 +54,9 @@ end
 macro return_if_told(clk)
     quote
         local channellock = $(esc(clk))
-        lock(channellock.lock)
-        try
-            if length(channellock.channel.data) > 0
-                return
-            end
-        finally
-            unlock(channellock.lock)
+        if isready(channellock.channel)
+            return
         end
     end
 end
-    
-
-        
     

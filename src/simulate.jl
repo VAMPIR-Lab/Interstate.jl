@@ -49,27 +49,34 @@ function simulate(sim::Simulator, emg, channel;
                   disp=false,
                   check_collision=true,
                   check_road_violation=[],
-                  print_increment=0.01,
+                  print_increment=0.1,
                   )
 
     t0 = time_ns()
     simulated_time = 0.0
     display_time = 0.0
     println("Simulating on thread ", Threads.threadid())
+    iters = 0
     #try
         while true
             sleep(0)
             @return_if_told(emg)
-
             simulated_time += Δ
             display_time += Δ
+            iters += 1
 
             for (id, movable) ∈ sim.movables
                 update_command!(movable)
                 update_state!(movable, Δ)
             end
            
+            #movables_copy = deepcopy(sim.movables)
+            #movables_copy = Dict{Int, Movable}()
+            #for (id, movable) ∈ sim.movables
+            #    movables_copy[id] = copy(movable)
+            #end
             @replace(channel, (simulated_time, sim.movables))
+            #@replace(channel, (simulated_time, movables_copy))
 
             #find_closest!(closest_ids, sim.movables, num_viewed) 
             if check_collision && collision(sim.movables)
@@ -95,7 +102,7 @@ function simulate(sim::Simulator, emg, channel;
                 if disp
                     print("\e[2K")
                     print("\e[1G")
-                    @printf("Loop time: %f.", Δ)
+                    @printf("Loop time: %f.", simulated_time / iters)
                 end
                 display_time -= print_increment
             end

@@ -38,6 +38,8 @@ Base.@kwdef struct Building <: Movable
     channel::ChannelLock{Int} = ChannelLock{Int}(0)
 end
 
+Base.copy(x::T) where T<:Movable = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)
+
 function position(m::Building)
     m.position
 end

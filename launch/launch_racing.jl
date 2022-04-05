@@ -69,10 +69,9 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     sensors = Dict(1=>s1, 2=>s2)
     
     scene = Scene(resolution = (1200, 1200), show_axis=false)
-    cam = cam3d!(scene, near=0.001, far=100.0, update_rate=0.01)
+    cam = cam3d!(scene, near=0.001, far=1000.0)
     visualize_road(scene, road)
    
-
     #TODO pull view_obj stuff into function 
     view_objs = []
     
@@ -96,14 +95,13 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     sim = Simulator(movables, road)
 
     display(scene)
-    
     @sync begin
-        @async controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1), θ_step = 0.3)
-        @async fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @async simulate(sim, EMG, SIM_ALL; disp=false, check_road_violation=[1,])
         @async visualize(SIM_ALL, EMG, view_objs, cam)
-        @async sense(SIM_ALL, EMG, sensors, road)
-        @async keyboard_broadcaster(KEY, EMG) 
+        @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=true,check_road_violation=[1,])
+        @spawn controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, V=speed(m1), θ=heading(m1), θ_step = 0.3)
+        @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
+        @spawn sense(SIM_ALL, EMG, sensors, road)
+        @spawn keyboard_broadcaster(KEY, EMG) 
     end
     nothing
 end

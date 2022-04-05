@@ -2,9 +2,6 @@
 function sense(simulator_state::ChannelLock, emg::ChannelLock, sensors, road)  
     println("Sensing on thread ", Threads.threadid())
     lk = ReentrantLock()
-    fetched = false
-    timestamp = 0.0
-    movables = Dict{Int, Movable}()
     while true
         sleep(0)
         @return_if_told(emg)
