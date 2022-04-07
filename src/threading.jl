@@ -35,14 +35,14 @@ macro fetch_or_continue(clk)
     end
 end
 
-macro try_update(clk, value)
+macro fetch_or_default(clk, default)
     quote
         local channellock = $(esc(clk))
-        local value = $(esc(value))
-        if trylock(channellock.channel)
-            if isready(channellock.channel)
-                value = fetch(channellock.channel) 
-            end
+        local default = $(esc(default))
+        lock(channellock.channel)
+        try
+            isready(channellock.channel) ? fetch(channellock.channel) : default
+        finally
             unlock(channellock.channel)
         end
     end

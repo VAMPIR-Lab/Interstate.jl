@@ -23,23 +23,25 @@ function Box2(x_range, y_range)
     Box2(x, y, 0, lr, lf, w)
 end
 
-function Box2(road::Road, segment_id)
+function Box2(road::Road, segment_id; buf=10.0)
     segment = road.segments[segment_id]
-    if isa(CurvedSegment, segment)
+    if isa(segment, CurvedSegment)
         error("Can't make a curved road segment into a box!")
     end
     start = segment.start
     finish = segment.finish
-    vec = finish-segment
+    vec = finish-start
     len = norm(vec)
     vec /= len
+    start = start - buf*vec
+    finish = finish + buf*vec
     perp = [vec[2], -vec[1]]
     w = road.lanes*road.lanewidth
     start_r = start + perp*w
     finish_r = finish + perp*w
     avg = 0.25 * (start+start_r+finish+finish_r)
     θ = atan(vec[2], vec[1])
-    lr = lf = 0.5*len
+    lr = lf = 0.5*(len+2*buf)
     Box2(avg..., θ, lr, lf, w)
 end
 

@@ -34,8 +34,9 @@ function road_violation(m::Movable, road)
         violation = !inside(mbox, outer) || intersect(mbox, inner).collision
         return violation
     else
-        rbox = Box2(seg)
-        return inside(mbox, rbox)
+        rbox = Box2(road, segment_id)
+        violation = !inside(mbox, rbox)
+        return violation
     end
 end
 

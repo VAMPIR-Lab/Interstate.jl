@@ -60,17 +60,19 @@ function controller(CMD::ChannelLock,
                     SENSE_FLEET::ChannelLock, 
                     EMG::ChannelLock,
                     road)
-    local ego_meas
-    local fleet_meas
+    ego_meas = fetch(SENSE.channel)
+    fleet_meas = fetch(SENSE_FLEET.channel)
+    K₁ = K₂ = 0.5
 
     while true
         sleep(0)
         @return_if_told(EMG)
         
-        @try_update(SENSE, ego_meas)
-        @try_update(SENSE_FLEET, fleet_meas)
+        ego_meas = @fetch_or_default(SENSE, ego_meas)
+        fleet_meas = @fetch_or_default(SENSE_FLEET, fleet_meas)
+        
+        command = [0.0, 0.0] # replace!
+        @replace(CMD, command)
 
-        cmd = [0, 0] # change to your solution!
-        @replace(CMD, cmd)
     end
 end

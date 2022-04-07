@@ -23,7 +23,6 @@ function get_crosstrack_error(pos, heading, speed, target_lane, seg::StraightSeg
     del /= norm(del)
     perp = [del[2], -del[1]]
     ctv = -speed*perp'*[cos(heading), sin(heading)]
-
     return ((seg.start-pos)'*perp + (target_lane-0.5)*lanewidth), ctv
 end
 
