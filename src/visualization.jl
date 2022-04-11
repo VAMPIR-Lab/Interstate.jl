@@ -19,8 +19,8 @@ function find_closest!(ids, movables, n)
     end
 end
 
-function visualize(MEAS::ChannelLock{PointCloud},
-                   EMG::ChannelLock,
+function visualize(MEAS::Channel{PointCloud},
+                   EMG::Channel,
                    lidar::Lidar,
                    scene::Scene)
     lines = []
@@ -41,8 +41,8 @@ function visualize(MEAS::ChannelLock{PointCloud},
     end
 end
 
-function visualize(MEAS::ChannelLock{Dict{Int, Vector{BBoxMeas}}},
-                   EMG::ChannelLock,
+function visualize(MEAS::Channel{Dict{Int, Vector{BBoxMeas}}},
+                   EMG::Channel,
                    camera_array::Dict{Int, PinholeCamera},
                    scene::Scene)
     lines = []
@@ -66,8 +66,8 @@ function visualize(MEAS::ChannelLock{Dict{Int, Vector{BBoxMeas}}},
 end
 
 
-function visualize(SIM::ChannelLock, 
-                   EMG::ChannelLock,
+function visualize(SIM::Channel, 
+                   EMG::Channel,
                    viewables, 
                    follow_cam)
     num_viewed = length(viewables)

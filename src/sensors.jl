@@ -1,7 +1,6 @@
 
-function sense(simulator_state::ChannelLock, emg::ChannelLock, sensors, road)  
+function sense(simulator_state::Channel, emg::Channel, sensors, road)  
     println("Sensing on thread ", Threads.threadid())
-    lk = ReentrantLock()
     while true
         sleep(0)
         @return_if_told(emg)
@@ -21,7 +20,7 @@ abstract type Observation end
 struct Oracle<:Sensor
     m_id::Int
     find_road_segment::Bool
-    channel::ChannelLock
+    channel::Channel
 end
 
 struct OracleMeas <: Observation 
@@ -36,7 +35,7 @@ end
 
 struct FleetOracle<:Sensor
     m_ids
-    channel::ChannelLock
+    channel::Channel
 end
 
 struct BBoxMeas <: Observation
@@ -64,7 +63,7 @@ end
 
 struct CameraArray<:Sensor
     cameras::Dict{Int, PinholeCamera}
-    channel::ChannelLock
+    channel::Channel
 end
 
 struct Lidar<:Sensor
@@ -73,7 +72,7 @@ struct Lidar<:Sensor
     offset::SVector{3, Float64} # relative to top center of movable[m_id]
     max_beam_length::Float64
     m_id::Int
-    channel::ChannelLock
+    channel::Channel
 end
 
 function get_transform(pos, lookat)

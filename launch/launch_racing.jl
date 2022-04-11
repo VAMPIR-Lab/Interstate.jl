@@ -7,13 +7,13 @@ using .Threads
 
 function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=100.0, lanes=3, lanewidth=5.0)
 
-    CMD_EGO = ChannelLock{VehicleControl}(1)
-    CMD_FLEET = Dict{Int, ChannelLock{VehicleControl}}()
-    EMG = ChannelLock{Int}(1)
-    KEY = ChannelLock{Char}(1)
-    SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
-    SENSE_EGO = ChannelLock{OracleMeas}(1)
-    SENSE_FLEET = ChannelLock{Dict{Int,OracleMeas}}(1)
+    CMD_EGO = Channel{VehicleControl}(1)
+    CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
+    EMG = Channel{Int}(1)
+    KEY = Channel{Char}(1)
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
+    SENSE_EGO = Channel{OracleMeas}(1)
+    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
 
     if loop
         road = simple_loop(radius=loop_radius, lanes=lanes, lanewidth=lanewidth)
@@ -34,7 +34,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         speed = 10.0 + rand()*20.0
         lane = rand(1:lanes)
         color = parse(RGB, "rgb"*string(Tuple(rand(0:255,3))))
-        channel = ChannelLock{VehicleControl}(1)
+        channel = Channel{VehicleControl}(1)
         if loop
             θ = -π/2.0
             while -π/2.0-π/6.0 ≤ θ ≤ -π/2.0+π/6.0
@@ -98,8 +98,8 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     @sync begin
         @async visualize(SIM_ALL, EMG, view_objs, cam)
         @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=true,check_road_violation=[1,])
-        #@spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG, V=speed(m1), θ=heading(m1), θ_step=0.25)
-        @spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road)
+        @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG, V=speed(m1), θ=heading(m1), θ_step=0.25)
+        #@spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road)
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         @spawn keyboard_broadcaster(KEY, EMG) 

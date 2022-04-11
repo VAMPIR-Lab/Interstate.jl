@@ -12,7 +12,7 @@ Base.@kwdef struct Unicycle <: Movable
     color = parse(RGB, "rgb"*string((0,0,255)))
     target_vel::Float64 = 0
     target_lane::Int = 0
-    channel::ChannelLock{VehicleControl} = ChannelLock{VehicleControl}(0)
+    channel::Channel{VehicleControl} = Channel{VehicleControl}(0)
 end
 
 Base.@kwdef struct Bicycle <: Movable
@@ -25,7 +25,7 @@ Base.@kwdef struct Bicycle <: Movable
     color = parse(RGB, "rgb"*string((0,0,255)))
     target_vel::Float64 = 0
     target_lane::Int = 0
-    channel::ChannelLock{VehicleControl} = ChannelLock{VehicleControl}(0)
+    channel::Channel{VehicleControl} = Channel{VehicleControl}(0)
 end
 
 Base.@kwdef struct Building <: Movable
@@ -35,7 +35,7 @@ Base.@kwdef struct Building <: Movable
     length::Float64 = 10.0
     height::Float64 = 20.0
     color = parse(RGB, "rgb"*string((0,0,0)))
-    channel::ChannelLock{Int} = ChannelLock{Int}(0)
+    channel::Channel{Int} = Channel{Int}(0)
 end
 
 Base.copy(x::T) where T<:Movable = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)

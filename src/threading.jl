@@ -1,88 +1,78 @@
-struct ChannelLock{T}
-    channel::Channel{T}
-    lock::ReentrantLock
-end
-
-function ChannelLock{T}(size::Int) where T
-    ChannelLock(Channel{T}(size), ReentrantLock())
-end
-
 macro replace(clk, val)
     quote
-        local channellock = $(esc(clk))
+        local channel = $(esc(clk))
         local value = $(esc(val))
-        lock(channellock.channel)
+        lock(channel)
         try
-            while isready(channellock.channel)
-                take!(channellock.channel)
+            while isready(channel)
+                take!(channel)
             end
-            put!(channellock.channel, value)
+            put!(channel, value)
         finally
-            unlock(channellock.channel)
+            unlock(channel)
         end
     end
 end
 
 macro fetch_or_continue(clk)
     quote
-        local channellock = $(esc(clk))
-        lock(channellock.channel)
+        local channel = $(esc(clk))
+        lock(channel)
         try
-            isready(channellock.channel) ? fetch(channellock.channel) : continue
+            isready(channel) ? fetch(channel) : continue
         finally
-            unlock(channellock.channel)
+            unlock(channel)
         end
     end
 end
 
 macro fetch_or_default(clk, default)
     quote
-        local channellock = $(esc(clk))
+        local channel = $(esc(clk))
         local default = $(esc(default))
-        lock(channellock.channel)
+        lock(channel)
         try
-            isready(channellock.channel) ? fetch(channellock.channel) : default
+            isready(channel) ? fetch(channel) : default
         finally
-            unlock(channellock.channel)
+            unlock(channel)
         end
     end
 end
 
 macro take_or_default(clk, default)
     quote
-        local channellock = $(esc(clk))
+        local channel = $(esc(clk))
         local default = $(esc(default))
-        lock(channellock.channel)
+        lock(channel)
         try
-            isready(channellock.channel) ? take!(channellock.channel) : default
+            isready(channel) ? take!(channel) : default
         finally
-            unlock(channellock.channel)
+            unlock(channel)
         end
     end
 end
 
 macro fetch_or_return(clk)
     quote
-        local channellock = $(esc(clk))
-        lock(channellock.channel)
+        local channel = $(esc(clk))
+        lock(channel)
         try
-            if length(channellock.channel.data) > 0
-                fetch(channellock.channel)
+            if isready(channel)
+                fetch(channel)
             else
                 return
             end
         finally
-            unlock(channellock.channel)
+            unlock(channel)
         end
     end
 end
 
 macro return_if_told(clk)
     quote
-        local channellock = $(esc(clk))
-        if isready(channellock.channel)
+        local channel = $(esc(clk))
+        if isready(channel)
             return
         end
     end
 end
-    

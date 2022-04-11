@@ -1,4 +1,4 @@
-function localize(SENSE::ChannelLock, LOCALIZE::ChannelLock, EMG::ChannelLock, lidar, road, buildings)
+function localize(SENSE::Channel, LOCALIZE::Channel, EMG::Channel, lidar, road, buildings)
     while true
         sleep(0)
         @return_if_told(EMG)

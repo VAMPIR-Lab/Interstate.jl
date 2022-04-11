@@ -7,14 +7,14 @@ using .Threads
 
 function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
  
-    CMD_FLEET = Dict{Int, ChannelLock{VehicleControl}}()
-    EMG = ChannelLock{Int}(1)
-    KEY = ChannelLock{Char}(1)
-    SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
-    SENSE_EGO = ChannelLock{OracleMeas}(1)
-    SENSE_FLEET = ChannelLock{Dict{Int,OracleMeas}}(1)
-    TRACKS = ChannelLock{TracksMessage}(1)
-    SENSE_CAM = ChannelLock{Dict{Int, Vector{BBoxMeas}}}(1)
+    CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
+    EMG = Channel{Int}(1)
+    KEY = Channel{Char}(1)
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
+    SENSE_EGO = Channel{OracleMeas}(1)
+    SENSE_FLEET = Channel{Dict{Int,OracleMeas}}(1)
+    TRACKS = Channel{TracksMessage}(1)
+    SENSE_CAM = Channel{Dict{Int, Vector{BBoxMeas}}}(1)
 
     road = simple_loop(radius=loop_radius, lanes=lanes, lanewidth=lanewidth)
    
@@ -36,7 +36,7 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
         y = loop_radius+sin(θ)*rad
         state = MVector{4, Float64}(x, y, speed, θ+π/2.0)
         control = MVector{2, Float64}(0.0, 0.0)
-        channel = ChannelLock{VehicleControl}(1)
+        channel = Channel{VehicleControl}(1)
         movables[i] = Unicycle(state=state,
                                control=control,
                                width=width,

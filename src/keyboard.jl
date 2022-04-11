@@ -6,7 +6,7 @@ function getc1()
     c
 end
 
-function keyboard_broadcaster(KEY::ChannelLock, EMG::ChannelLock)
+function keyboard_broadcaster(KEY::Channel, EMG::Channel)
     println("Press 'q' at any time to terminate simulator.")
     while true
         @return_if_told(EMG)

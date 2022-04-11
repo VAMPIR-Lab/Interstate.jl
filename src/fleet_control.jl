@@ -1,4 +1,4 @@
-function fleet_controller(CMD::Dict{Int,ChannelLock{T}}, SENSE::ChannelLock, EMG::ChannelLock, road; K₁=0.5, K₂=.5, disp=true) where T
+function fleet_controller(CMD::Dict{Int,Channel{T}}, SENSE::Channel, EMG::Channel, road; K₁=0.5, K₂=.5, disp=true) where T
     while true
         sleep(0.001)
         @return_if_told(EMG)

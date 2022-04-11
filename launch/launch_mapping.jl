@@ -7,13 +7,13 @@ using .Threads
 
 function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=5.0, blocks_long=7, blocks_wide=4, buildings_per_block=3)
  
-    CMD_EGO = ChannelLock{VehicleControl}(1)
-    EMG = ChannelLock{Int}(1)
-    KEY = ChannelLock{Char}(1)
-    SIM_ALL = ChannelLock{Tuple{Float64,Dict{Int, Movable}}}(1)
-    SENSE_EGO = ChannelLock{OracleMeas}(1)
-    SENSE_LIDAR = ChannelLock{PointCloud}(1)
-    LOCALIZE = ChannelLock{OracleMeas}(1)
+    CMD_EGO = Channel{VehicleControl}(1)
+    EMG = Channel{Int}(1)
+    KEY = Channel{Char}(1)
+    SIM_ALL = Channel{Tuple{Float64,Dict{Int, Movable}}}(1)
+    SENSE_EGO = Channel{OracleMeas}(1)
+    SENSE_LIDAR = Channel{PointCloud}(1)
+    LOCALIZE = Channel{OracleMeas}(1)
 
     road, buildings = random_grid(lanes=lanes, lanewidth=lanewidth, blocks_long=blocks_long, blocks_wide=blocks_wide, buildings_per_block=buildings_per_block)
 

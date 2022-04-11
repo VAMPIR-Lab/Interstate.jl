@@ -14,7 +14,7 @@ end
 
 
 
-function object_tracker(SENSE::ChannelLock, TRACKS::ChannelLock, EMG::ChannelLock, camera_array, road)
+function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_array, road)
     lines = []
 
     while true

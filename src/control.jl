@@ -6,10 +6,10 @@ function clip(x, l)
     max(-l, min(l, x))
 end
 
-function keyboard_controller(KEY::ChannelLock, 
-                             CMD::ChannelLock, 
-                             SENSE::ChannelLock, 
-                             EMG::ChannelLock;
+function keyboard_controller(KEY::Channel, 
+                             CMD::Channel, 
+                             SENSE::Channel, 
+                             EMG::Channel;
                              K1=5, 
                              K2=.5, 
                              disp=false, 
@@ -55,13 +55,13 @@ function keyboard_controller(KEY::ChannelLock,
     end
 end
 
-function controller(CMD::ChannelLock, 
-                    SENSE::ChannelLock, 
-                    SENSE_FLEET::ChannelLock, 
-                    EMG::ChannelLock,
+function controller(CMD::Channel, 
+                    SENSE::Channel, 
+                    SENSE_FLEET::Channel, 
+                    EMG::Channel,
                     road)
-    ego_meas = fetch(SENSE.channel)
-    fleet_meas = fetch(SENSE_FLEET.channel)
+    ego_meas = fetch(SENSE)
+    fleet_meas = fetch(SENSE_FLEET)
     K₁ = K₂ = 0.5
 
     while true
