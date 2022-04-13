@@ -30,6 +30,10 @@ struct OracleMeas <: Observation
     road_segment_id
     target_lane
     target_vel
+    front #offset from position to front of vehicle (positive value)
+    rear  #offset from position to rear of vehicle (negative value)
+    left  #offset from position to left of vehicle (positive value)
+    right #offset from position to right of vehicle (negative value)
     time
 end
 
@@ -164,14 +168,14 @@ end
 function update_sensor(sensor::Oracle, gt, ms, road)
     m = ms[sensor.m_id]
     seg = sensor.find_road_segment ? road_segment(m, road) : -1
-    meas = OracleMeas(position(m), speed(m), heading(m), seg, m.target_lane, m.target_vel, gt)
+    meas = OracleMeas(position(m), speed(m), heading(m), seg, m.target_lane, m.target_vel, front(m), rear(m), left(m), right(m), gt)
 end
 
 function update_sensor(sensor::FleetOracle, gt, ms, road)
     meas = Dict{Int, OracleMeas}()
     for id ∈ sensor.m_ids
         m = ms[id]
-        omeas = OracleMeas(position(m), speed(m), heading(m), road_segment(m,road), m.target_lane, m.target_vel, gt)
+        omeas = OracleMeas(position(m), speed(m), heading(m), road_segment(m,road), m.target_lane, m.target_vel, front(m), rear(m), left(m), right(m), gt)
         meas[id] = omeas
     end
     meas
