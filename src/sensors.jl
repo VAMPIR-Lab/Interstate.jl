@@ -13,9 +13,19 @@ function sense(simulator_state::Channel, emg::Channel, sensors, road)
 end
 
 
-
 abstract type Sensor end
 abstract type Observation end
+
+struct GPS<:Sensor
+    m_id::Int
+    noise_std::Float64
+    channel::Channel
+end
+
+struct GPSMeas <: Observation
+    position
+    time
+end
 
 struct Oracle<:Sensor
     m_id::Int
@@ -169,6 +179,12 @@ function update_sensor(sensor::Oracle, gt, ms, road)
     m = ms[sensor.m_id]
     seg = sensor.find_road_segment ? road_segment(m, road) : -1
     meas = OracleMeas(position(m), speed(m), heading(m), seg, m.target_lane, m.target_vel, front(m), rear(m), left(m), right(m), gt)
+end
+
+function update_sensor(sensor::GPS, gt, ms, road)
+    m = ms[sensor.m_id]
+    noisy_pos = position(m) + sensor.noise_std * randn(2)
+    meas = GPSMeas(position(m), gt)
 end
 
 function update_sensor(sensor::FleetOracle, gt, ms, road)
