@@ -77,9 +77,17 @@ end
 
 # This function updates the vehicle state based off of a previous state estimate saved in tracks
 function state_dynamics(state::ObjectState, v::Float64, Δt::Float64, P)
-    next_state = copy(state)
-    w = random_sample(P) # Gaussian noise
-    next_state += Δt * [v*cos(state.θ), v*sin(state.θ), 0, 0, 0, 0, 0] + w
+    ω = random_sample(P) # Gaussian noise
+
+    x = state.x + Δt*v*cos(state.θ) + ω[1]
+    y = state.y + Δt*v*sin(state.θ) + ω[2]
+    v = state.v + ω[3]
+    θ = state.θ + ω[4]
+    l = state.length + ω[5]
+    w = state.width + ω[6]
+    h = state.height + ω[7]
+
+    ObjectState(x, y, v, θ, l, w, h)
 end
 
 # Calculates jacobian of f(x, u) = F
@@ -105,25 +113,21 @@ function get_predicted_bbox(x_predicted::ObjectState, camera_array, cur_time, ro
     z_right = []
     if out_of_frame !== 1 # Left camera is in frame
         bbox_left = update_sensor(c1, cur_time, moveables, road)
-        z_left = convert_to_vector(bbox_left)
+        # Eventually fails ----
+        z_left = convert_to_vector(bbox_left[1])
     end
     if out_of_frame !== 2 # Right camera is in frame
         bbox_right = update_sensor(c2, cur_time, moveables, road)
-        z_right = convert_to_vector(bbox_right)
+        z_right = convert_to_vector(bbox_right[1])
     end
     [z_left; z_right]
 end
 
 # TODO
 # Calculates jacobian of expected bounding box = H
-function jac_h(Δt::Float64, v::Float64, θ::Float64)
-    H = [1 0 Δt*cos(θ) -Δt*v*sin(θ) 0 0 0;
-        0 1 Δt*sin(θ) Δt*v*cos(θ) 0 0 0;
-        0 0 1 0 0 0 0;
-        0 0 0 1 0 0 0;
-        0 0 0 0 1 0 0;
-        0 0 0 0 0 1 0;
-        0 0 0 0 0 0 1]
+function jac_h(zk_length)
+    # Dummy value for now
+    H = ones(zk_length, 7)
 end
 
 # TODO - alter Qk?
@@ -138,7 +142,7 @@ end
 
 # TODO - alter Rk?
 function residual_cov(H, P_predicted, zk_length)
-    Rk = diagm(ones(Float64, length(zk_length)))
+    Rk = diagm(ones(Float64, zk_length))
     P = H * P_predicted * transpose(H) + Rk
 end
 
@@ -146,13 +150,23 @@ function kalman_gain(P_predicted, H, S)
     K = P_predicted * transpose(H) * inv(S)
 end
 
-function update_state(x_predicted, K, yk)
-    X = x_predicted + K * yk
+function update_state(x_predicted::ObjectState, K, yk)
+    Ky = K * yk
+
+    x = x_predicted.x + Ky[1]
+    y = x_predicted.y + Ky[2]
+    v = x_predicted.v + Ky[3]
+    θ = x_predicted.θ + Ky[4]
+    l = x_predicted.length + Ky[5]
+    w = x_predicted.width + Ky[6]
+    h = x_predicted.height + Ky[7]
+
+    ObjectState(x, y, v, θ, l, w, h)
 end
 
 function update_cov(P_predicted, H, K)
     KH = K * H
-    P = (diagm(ones(Float64, length(KH))) - KH) * P_predicted
+    P = (diagm(ones(Float64, size(KH, 1))) - KH) * P_predicted
 end
 
 # Implementation for one vehicle.
@@ -167,10 +181,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
         left_bboxes = meas[1]
         right_bboxes = meas[2]
         if length(left_bboxes) > 0 || length(right_bboxes) > 0
-            println()
-            println("LEFT: ", left_bboxes)
-            println("RIGHT: ", right_bboxes)
-            println()
+            println("LEFT: $left_bboxes")
+            println("RIGHT: $right_bboxes")
 
             cur_t = (length(left_bboxes) > 0) ? left_bboxes[1].time : right_bboxes[1].time
 
@@ -199,18 +211,18 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             tracks = Dict{Int, Tuple{ObjectState, Matrix{Float64}}}()
             if isready(TRACKS) # Tracks has a value
                 tracks_obj = @fetch_or_continue(TRACKS) # ::TracksMessage
-                prev_t = tracks_obj[1] # Timestamp
-                tracks = tracks_obj[2] # ::Dict{Int, Tuple{ObjectState, Matrix{Float64}}}
+                prev_t = tracks_obj.timestamp # Timestamp
+                tracks = tracks_obj.tracks # ::Dict{Int, Tuple{ObjectState, Matrix{Float64}}}
             end
 
-            println("TRACKS ===", tracks)
+            Δt = get_time(prev_t, cur_t)
+            v = get_velocity()
 
             # Predict state and covariance
             if length(tracks) > 0
-                Δt = get_time(prev_t, cur_t)
-
                 # TODO find asssociated track, if one exists that corresponds
                 (x_prev, P_prev) = tracks[1]
+
                 # If no associated track, create new state entry?
                 # (x_predicted, P_predicted) = initialize(bbox)
 
@@ -224,8 +236,9 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             end
 
             # Update state and covariance
-            yk = residual_meas(zk, x_predicted, camera_array, cur_time, road, out_of_frame)
-            H = jac_h(Δt, v, θ) # TODO idk what we need here tbh
+            yk = residual_meas(zk, x_predicted, camera_array, cur_t, road, out_of_frame)
+            println("Error: $yk")
+            H = jac_h(length(zk)) # TODO idk what we need here tbh
             S = residual_cov(H, P_predicted, length(zk))
             K = kalman_gain(P_predicted, H, S)
             x = update_state(x_predicted, K, yk)
@@ -235,6 +248,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             tracks[1] = (x, P)
             new_TRACKS = TracksMessage(cur_t, tracks)
             @replace(TRACKS, new_TRACKS)
+
+            println()
         else
             # No cars in either camera frame, do nothing
         end
