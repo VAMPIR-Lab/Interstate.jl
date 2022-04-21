@@ -76,3 +76,12 @@ macro return_if_told(clk)
         end
     end
 end
+
+macro break_if_told(clk)
+    quote
+        local channel = $(esc(clk))
+        if isready(channel)
+            break
+        end
+    end
+end

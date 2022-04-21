@@ -12,8 +12,6 @@ struct TracksMessage
     tracks::Dict{Int, ObjectState}
 end
 
-
-
 function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_array, road)
     lines = []
 

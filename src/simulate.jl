@@ -51,6 +51,7 @@ function simulate(sim::Simulator, emg, channel;
                   check_collision=true,
                   check_road_violation=[],
                   print_increment=0.1,
+                  log_survival_time=false,
                   )
 
     t0 = time_ns()
@@ -58,55 +59,51 @@ function simulate(sim::Simulator, emg, channel;
     display_time = 0.0
     println("Simulating on thread ", Threads.threadid())
     iters = 0
-    #try
-        while true
-            sleep(0)
-            @return_if_told(emg)
-            simulated_time += Δ
-            display_time += Δ
-            iters += 1
+    while true
+        sleep(0)
+        @break_if_told(emg)
+        simulated_time += Δ
+        display_time += Δ
+        iters += 1
 
-            for (id, movable) ∈ sim.movables
-                update_command!(movable)
-                update_state!(movable, Δ)
-            end
-           
-            @replace(channel, (simulated_time, sim.movables))
-
-            if check_collision && collision(sim.movables)
-                println()
-                println("Collision!")
-                @replace(emg, 1)
-                return
-            end
-
-            if length(check_road_violation) > 0
-                for id ∈ check_road_violation
-                    if road_violation(sim.movables[id], sim.road)
-                        println()
-                        println("Road boundary violation!")
-                        @replace(emg, 1)
-                        return
-                    end
-                end
-            end
-
-
-            if display_time > print_increment
-                if disp
-                    print("\e[2K")
-                    print("\e[1G")
-                    @printf("Loop time: %f.", simulated_time / iters)
-                end
-                display_time -= print_increment
-            end
-            err = (time_ns()-t0)/1e9 - simulated_time
-            Δ = max(0.0, min(5e-1, err))
+        for (id, movable) ∈ sim.movables
+            update_command!(movable)
+            update_state!(movable, Δ)
         end
-    #catch e #    if e isa InterruptException
-    #        println(e)
-    #        println()
-    #        println("Interrupt!")
-    #end
+       
+        @replace(channel, (simulated_time, sim.movables))
+
+        if check_collision && collision(sim.movables)
+            println()
+            println("Collision!")
+            @replace(emg, 1)
+            break
+        end
+
+        if length(check_road_violation) > 0
+            for id ∈ check_road_violation
+                if road_violation(sim.movables[id], sim.road)
+                    println()
+                    println("Road boundary violation!")
+                    @replace(emg, 1)
+                    break
+                end
+            end
+        end
+
+        if display_time > print_increment
+            if disp
+                print("\e[2K")
+                print("\e[1G")
+                @printf("Loop time: %f.", simulated_time / iters)
+            end
+            display_time -= print_increment
+        end
+        err = (time_ns()-t0)/1e9 - simulated_time
+        Δ = max(0.0, min(5e-1, err))
+    end
+    if log_survival_time
+        println("Survived for ", simulated_time, " seconds.")
+    end
 end
 

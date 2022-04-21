@@ -5,7 +5,7 @@ using StaticArrays
 using Polyhedra
 using .Threads
 
-function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
+function launch_perception(; num_agents=20, num_viewable=20, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
  
     CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
     EMG = Channel{Int}(1)
@@ -90,10 +90,10 @@ function launch_perception(; num_agents=50, num_viewable=50, loop=true, loop_rad
         @async visualize(SENSE_CAM, EMG, camera_array, scene)
         @spawn object_tracker(SENSE_CAM, TRACKS, EMG, camera_array, road)
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
-        @spawn simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
+        @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=false)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         @spawn keyboard_broadcaster(KEY, EMG)
+        @spawn eval_perception(SIM_ALL, TRACKS, EMG, camera_array, road; disp=true)
     end
-    #GLMakie.destroy!(GLMakie.global_gl_screen())
     nothing
 end
