@@ -407,7 +407,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                 right_asso_matrix = []
 
                 k = 1
-                predicted_dict = Dict{Int, Tuple{Tuple{Vector{Float64}, Vector{Float64}}, ObjectStatePlus, Matrix{Float64}, Tuple{Tuple{Vector{Float64}, Vector{Float64}}}}}()
+                predicted_dict = Dict{Int, Tuple{Tuple{Vector{Float64}, Vector{Float64}}, ObjectStatePlus, Matrix{Float64}, Tuple{Vector{Float64}, Vector{Float64}}}}()
                 for i in 1:length(tracks)
                     # Convert from ObjectState to ObjectStatePlus
                     x_prev = convert_to_stateplus(tracks[i], vel_dict[i])
@@ -417,7 +417,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     x_predicted = state_dynamics(x_prev, Δt, P_prev) # = f(x, u), ::ObjectStatePlus
 
                     # Use x_predicted to get predicted left and right bboxes
-                    moveables = Dict{Int,Movable}(convert_to_ms(x_predicted))
+                    moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
                     (left_predicted, right_predicted) = get_predicted_bbox(moveables, camera_array, cur_t, road)
 
                     # If vehicle now predicted to be out of frame, do not track
@@ -444,7 +444,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     # assign associated to last part of tuple
                     left_asso = []
                     right_asso = []
-                    predicted_dict[i][4] = (left_asso, right_asso)
+                    #predicted_dict[i] = update value of same values and , (left_asso, right_asso)
 
                     find_associated_meas(predicted_dict, left_asso_matrix)
                     find_associated_meas(predicted_dict, right_asso_matrix)
@@ -463,7 +463,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     # have to change these values from stored in predicted_dict
                     # Update state and covariance
                     yk = residual_meas(zk, [left_predicted; right_predicted])
-                    moveables = Dict{Int,Movable}(convert_to_ms(x_predicted))
+                    moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
                     H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
                     S = residual_cov(H, P_predicted, length(zk))
                     K = kalman_gain(P_predicted, H, S)
