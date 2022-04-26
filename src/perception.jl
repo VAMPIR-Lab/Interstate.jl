@@ -199,10 +199,14 @@ function jac_h(z_predicted, x_predicted::ObjectStatePlus, moveables::Dict{Int,Mo
         jac_py_x_b = [f/(pt_bottom[3] * sy), 0, (-pt_bottom[1]/(pt_bottom[3]^2))*(f/sy)] #1x3
     end =#
 
-    # Does l, w, h +/- change?
-    jac_q_x = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
+    jac_q_x_tl = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
                 0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
                 0 0 0 0 0 0 1] # 3 x 7
+
+    jac_q_x_tl = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
+                0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
+                0 0 0 0 0 0 1] # 3 x 7
+    # -l, w, h
     jac_x_q = camera.R # 3x3
     jac_l_px = [1] 
     
@@ -276,7 +280,7 @@ function find_associated_meas(bbox_list::Vector{BBoxMeas}, predicted_bbox)
     
     if min_norm <= thres
         # Remove bbox from list as it was matched
-        deleteat!(bbox_list, i)
+        deleteat!(bbox_list, closest_ind)
     else
         # No match
         z_closest = []
@@ -307,7 +311,7 @@ function associate_left_right(left_bboxes::Vector{BBoxMeas}, right_bboxes::Vecto
 
         if min_norm <= thres
             # Remove bbox from list as it was matched
-            deleteat!(right_bboxes, i)
+            deleteat!(right_bboxes, closest_ind)
         end
     end
 
@@ -379,8 +383,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
 
         if num_left_bboxes > 0 || num_right_bboxes > 0
             # TODO comment out below
-            println("LEFT: $left_bboxes")
-            println("RIGHT: $right_bboxes")
+            # println("LEFT: $left_bboxes")
+            # println("RIGHT: $right_bboxes")
 
             cur_t = (num_left_bboxes > 0) ? left_bboxes[1].time : right_bboxes[1].time
             
@@ -389,7 +393,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             tracks = []
             if isready(TRACKS)
                 tracks_obj = @fetch_or_continue(TRACKS) # ::TracksMessage
-                prev_t = tracks_obj.timestamp # Timestamp
+                prev_t = tracks_obj.timestamp
                 tracks = tracks_obj.tracks # ::Dict{Int, ObjectState}
             end
 
