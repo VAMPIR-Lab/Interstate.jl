@@ -62,7 +62,7 @@ function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=
         @spawn sense(SIM_ALL, EMG, sensors_oracle, road)
         @spawn sense(SIM_ALL, EMG, sensors_ego, road)
         @spawn keyboard_broadcaster(KEY, EMG)
-        @spawn localize(SENSE_LIDAR, SENSE_GPS, LOCALIZE, EMG, lidar, road, buildings)
+        @spawn localize(SENSE_LIDAR, SENSE_GPS, LOCALIZE, CMD_EGO, EMG, lidar, road, buildings)
     end
     nothing
 end
