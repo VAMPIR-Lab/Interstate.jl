@@ -100,3 +100,51 @@ function eval_perception(SIM_STATE::Channel, TRACKS::Channel, EMG::Channel, sens
         end
     end
 end
+
+
+function get_road_angle(ego::Movable, road)
+    pos = position(ego)
+    vec = pos - road.segments[1].center
+    θ = atan(vec[2], vec[1])
+end
+
+
+function eval_racing(SIM_STATE::Channel, EMG::Channel, road; disp=false, print_gap=10, time_limit = 60.0)
+    total_turns = 0.0     
+    sim_state = fetch(SIM_STATE)
+    initial_time = sim_state[1]
+    ego = sim_state[2][1]
+    θ_prev = get_road_angle(ego, road)
+    cycles_to_print = print_gap
+
+    while true
+        sleep(0)
+        @break_if_told(EMG)
+
+        sim_state = @fetch_or_default(SIM_STATE, sim_state)
+
+        sim_time = sim_state[1]
+        ego = sim_state[2][1]
+        θ = get_road_angle(ego, road)
+
+        added_turns = wrap(θ - θ_prev)
+
+        total_turns += added_turns
+        θ_prev = θ
+           
+        time_expired = (sim_time > initial_time + time_limit)
+
+        if time_expired || (disp && cycles_to_print ≤ 0)
+            print("\e[2K")
+            print("\e[1G")
+            print("Total turns completed in time limit: ", total_turns / (2π))
+            cycles_to_print = print_gap
+        elseif disp
+            cycles_to_print -= 1
+        end
+        if time_expired 
+            @replace(EMG, 1)
+            break
+        end
+    end
+end

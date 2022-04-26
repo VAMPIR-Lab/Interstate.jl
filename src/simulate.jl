@@ -103,6 +103,7 @@ function simulate(sim::Simulator, emg, channel;
         Δ = max(0.0, min(5e-1, err))
     end
     if log_survival_time
+        println()
         println("Survived for ", simulated_time, " seconds.")
     end
 end

@@ -5,7 +5,13 @@ using StaticArrays
 using Polyhedra
 using .Threads
 
-function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=100.0, lanes=3, lanewidth=5.0)
+function launch_racing(; num_agents=50, 
+                         num_viewable=10,
+                         loop=true,
+                         loop_radius=100.0,
+                         lanes=3,
+                         lanewidth=5.0,
+                         time_limit=60.0)
 
     CMD_EGO = Channel{VehicleControl}(1)
     CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
@@ -103,6 +109,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         @spawn keyboard_broadcaster(KEY, EMG) 
+        @spawn eval_racing(SIM_ALL, EMG, road; disp=true, time_limit)
     end
     nothing
 end
