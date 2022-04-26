@@ -182,7 +182,11 @@ function jac_h(z_predicted, x_predicted::ObjectStatePlus, moveables::Dict{Int,Mo
 
     pts = get_corners(moveables)
     transform!(camera, pts...)
-    [pt_left, pt_top, pt_right, pt_bottom] = expected_bbox_pts(sensor, pts, gt)
+    expected_corner = expected_bbox_pts(sensor, pts, gt)
+    pt_left = expected_corner[1]
+    pt_top = expected_corner[2]
+    pt_right = expected_corner[3]
+    pt_bottom = expected_corner[4]
     jac_px_x_l = [f/(pt_left[3] * sx), 0, (-pt_left[1]/(pt_left[3]^2))*(f/sx)] #1x3
     jac_px_x_r = [f/(pt_right[3] * sx), 0, (-pt_right[1]/(pt_right[3]^2))*(f/sx)] #1x3
     jac_py_x_t = [f/(pt_top[3] * sy), 0, (-pt_top[1]/(pt_top[3]^2))*(f/sy)] #1x3
