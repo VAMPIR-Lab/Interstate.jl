@@ -39,6 +39,19 @@ macro fetch_or_default(clk, default)
     end
 end
 
+macro deepcopy_or_default(clk, default)
+    quote
+        local channel = $(esc(clk))
+        local default = $(esc(default))
+        lock(channel)
+        try
+            isready(channel) ? deepcopy(fetch(channel)) : default
+        finally
+            unlock(channel)
+        end
+    end
+end
+
 macro take_or_default(clk, default)
     quote
         local channel = $(esc(clk))
@@ -73,6 +86,15 @@ macro return_if_told(clk)
         local channel = $(esc(clk))
         if isready(channel)
             return
+        end
+    end
+end
+
+macro break_if_told(clk)
+    quote
+        local channel = $(esc(clk))
+        if isready(channel)
+            break
         end
     end
 end

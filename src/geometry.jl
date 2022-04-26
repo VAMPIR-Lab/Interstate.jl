@@ -135,6 +135,17 @@ function intersect(box::Box3, ray::Ray3; max_dist = 100.0)
     (; collision, dist, p, α)
 end
 
+function intersection_over_union(m1, m2)
+    c1 = get_corners(m1)
+    h1 = convexhull(c1...)
+    p1 = polyhedron(h1)
+
+    c2 = get_corners(m2)
+    h2 = convexhull(c2...)
+    p2 = polyhedron(h2)
+    Polyhedra.volume(Polyhedra.intersect(p1,p2)) / (Polyhedra.volume(p1) + Polyhedra.volume(p2))
+end
+
 function intersect(b1::Box2, b2::Box2)
     I₂ = sparse(1.0I, 2, 2)
     P = [I₂ -I₂;
