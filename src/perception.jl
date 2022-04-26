@@ -38,15 +38,14 @@ struct TracksMessage
     tracks::Dict{Int, ObjectState}
 end
 
-# TODO: optimizations + testing...
-# 1. H - implementation?
-# 2. Alter covariances - Qk, Rk, noise...
-# 3. Test against evaluations
-# 4. Threshold for the matching
-# 5. Estimate x0, y0?
+# TODO
+# 2. Threshold for the matching
+# 3. Estimate x0, y0?
 
-# 6. Verify assigning new/deleting ids for new/left vehicles
-# 7. covariances?
+
+# 4. Association
+# 5. Resolve resolve_unmatched_bboxes
+# 6. associate left_right
 
 # This function returns random Gaussian noise
 function random_sample(Σ)
@@ -139,10 +138,10 @@ function expected_bbox_pts(camera, pts, gt)
     top = Inf
     right = -Inf
     bottom = -Inf
-    pt_left = [0,0,0]
-    pt_top = [0,0,0]
-    pt_right =  [0,0,0]
-    pt_bottom = [0,0,0]
+    pt_left = []
+    pt_top = []
+    pt_right =  []
+    pt_bottom = []
     for pt ∈ pts
         px = max(min(camera.focal_len * pt[1] / (pt[3] * camera.sx), 1.0), -1.0)
         py = max(min(camera.focal_len * pt[2] / (pt[3] * camera.sy), 1.0), -1.0)
@@ -166,60 +165,64 @@ function expected_bbox_pts(camera, pts, gt)
     [pt_left, pt_top, pt_right, pt_bottom]
 end
 
-# TODOO
-# What to do if expected bbox fails?
-# Calculates jacobian of expected bounding box = H for a camera
-# zk is of predicted_meas?
-# each row should be 1x7 - could be 4x7 or 8x7  when combined
-function jac_h(z_predicted, x_predicted::ObjectStatePlus, moveables::Dict{Int,Movable}, camera::PinholeCamera)
+# Calculates jacobian of expected bounding box = H for a camera (4x7 or 8x7)
+# H = ones(length(z_predicted), 7) # dummy val
+function jac_h(x_predicted::ObjectStatePlus, moveables::Dict{Int,Movable}, camera::PinholeCamera)
     θ = x_predicted.θ
     l = x_predicted.length
     w = x_predicted.width
-
     f = camera.focal_len
     sx = camera.sx
     sy = camera.sy
 
     pts = get_corners(moveables)
     transform!(camera, pts...)
-    expected_corner = expected_bbox_pts(sensor, pts, gt)
-    pt_left = expected_corner[1]
-    pt_top = expected_corner[2]
-    pt_right = expected_corner[3]
-    pt_bottom = expected_corner[4]
-    jac_px_x_l = [f/(pt_left[3] * sx), 0, (-pt_left[1]/(pt_left[3]^2))*(f/sx)] #1x3
-    jac_px_x_r = [f/(pt_right[3] * sx), 0, (-pt_right[1]/(pt_right[3]^2))*(f/sx)] #1x3
-    jac_py_x_t = [f/(pt_top[3] * sy), 0, (-pt_top[1]/(pt_top[3]^2))*(f/sy)] #1x3
-    jac_py_x_b = [f/(pt_bottom[3] * sy), 0, (-pt_bottom[1]/(pt_bottom[3]^2))*(f/sy)] #1x3
-    #= if infov(pts, camera)
-        [pt_left, pt_top, pt_right, pt_bottom] = expected_bbox_pts(sensor, pts, gt)
-        jac_px_x_l = [f/(pt_left[3] * sx), 0, (-pt_left[1]/(pt_left[3]^2))*(f/sx)] #1x3
-        jac_px_x_r = [f/(pt_right[3] * sx), 0, (-pt_right[1]/(pt_right[3]^2))*(f/sx)] #1x3
-        jac_py_x_t = [f/(pt_top[3] * sy), 0, (-pt_top[1]/(pt_top[3]^2))*(f/sy)] #1x3
-        jac_py_x_b = [f/(pt_bottom[3] * sy), 0, (-pt_bottom[1]/(pt_bottom[3]^2))*(f/sy)] #1x3
-    end =#
+    corner_pts = expected_bbox_pts(camera, pts, gt)
+    pt_left = corner_pts[1]
+    pt_top = corner_pts[2]
+    pt_right = corner_pts[3]
+    pt_bottom = corner_pts[4]
 
+    jac_px_x_l = [f/(pt_left[3] * sx), 0, (-pt_left[1]/(pt_left[3]^2))*(f/sx)]
+    jac_px_x_r = [f/(pt_right[3] * sx), 0, (-pt_right[1]/(pt_right[3]^2))*(f/sx)]
+    jac_py_x_t = [f/(pt_top[3] * sy), 0, (-pt_top[1]/(pt_top[3]^2))*(f/sy)]
+    jac_py_x_b = [f/(pt_bottom[3] * sy), 0, (-pt_bottom[1]/(pt_bottom[3]^2))*(f/sy)]
+
+    # l, -w, h
     jac_q_x_tl = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
                 0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
-                0 0 0 0 0 0 1] # 3 x 7
-
-    jac_q_x_tl = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
-                0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
-                0 0 0 0 0 0 1] # 3 x 7
+                0 0 0 0 0 0 1]
     # -l, w, h
-    jac_x_q = camera.R # 3x3
-    jac_l_px = [1] 
-    
-    jac_l = jac_l_px * jac_px_x_l * jac_x_q * jac_q_x # jac entry for each l, r, b, t, 
-    jac_t = jac_l_px * jac_py_x_t * jac_x_q * jac_q_x
-    jac_r = jac_l_px * jac_px_x_r * jac_x_q * jac_q_x
-    jac_b = jac_l_px * jac_py_x_b * jac_x_q * jac_q_x
-    H = [jac_l; jac_t; jac_r; jac_b]
+    jac_q_x_br = [1 0 0 -(-l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 -sin(θ)/2 0;
+                0 1 0 -(l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 cos(θ)/2 0;
+                0 0 0 0 0 0 1] 
 
-    H = ones(length(z_predicted), 7) # dummy val
+    jac_x_q = camera.R 
+    jac_l_px = [1]
+    
+    jac_l = jac_l_px * jac_px_x_l * jac_x_q * jac_q_x_tl
+    jac_t = jac_l_px * jac_py_x_t * jac_x_q * jac_q_x_tl
+    jac_r = jac_l_px * jac_px_x_r * jac_x_q * jac_q_x_br
+    jac_b = jac_l_px * jac_py_x_b * jac_x_q * jac_q_x_br
+
+    H = [jac_l; jac_t; jac_r; jac_b]
 end
 
-# TODO - alter Qk?
+function compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
+    H_left = []
+    H_right = []
+    # Only if in camera frame can we compute the jacobian
+    if length(left_predicted) > 0 
+        H_left = jac_h(x_predicted, moveables, camera_array[1])
+    end
+    if length(right_predicted) > 0 
+        H_right = jac_h(x_predicted, moveables, camera_array[2])
+    end
+    H = [H_left; H_right]
+end
+
+# -------------------------------------------
+
 function predict_cov(F, P_prev)
     Qk = diagm(ones(Float64, 7))
     P = F * P_prev * transpose(F) + Qk
@@ -229,7 +232,6 @@ function residual_meas(zk, z_predicted)
     yk = zk - z_predicted
 end
 
-# TODO - alter Rk?
 function residual_cov(H, P_predicted, zk_length)
     Rk = diagm(ones(Float64, zk_length))
     P = H * P_predicted * transpose(H) + Rk
@@ -258,74 +260,61 @@ function update_cov(P_predicted, H, K)
     P = (diagm(ones(Float64, size(KH, 1))) - KH) * P_predicted
 end
 
-# Returns the index of the first found closest bbox, if below a certain threshold
-function find_associated_meas(bbox_list::Vector{BBoxMeas}, predicted_bbox)
-    min_norm = Inf
-    closest_ind = 0
-    z_closest = []
-
-    thres = 2000 # TODO change
-
-    i = 1
-    for bbox ∈ bbox_list
-        z_bbox = convert_to_vector(bbox)
-        norm_bbox = norm(predicted_bbox - z_bbox)
-        if norm_bbox < min_norm
-            min_norm = norm_bbox
-            closest_ind = i
-            z_closest = z_bbox
-        end
-        i += 1 # Keep track of index
-    end
-    
-    if min_norm <= thres
-        # Remove bbox from list as it was matched
-        deleteat!(bbox_list, closest_ind)
+# Computes norm for predicted_bbox to each bbox in bbox_list
+function add_asso_matrix_row(predicted_bbox, bbox_list::Vector{BBoxMeas}, asso_matrix)
+    row = []
+    # If out of frame on one camera, append a row of infinity
+    if length(predicted_bbox) == 0
+        row = fill(Inf, length(bbox_list))
     else
-        # No match
-        z_closest = []
+        for bbox ∈ bbox_list
+            norm_bbox = norm(predicted_bbox - convert_to_vector(bbox))
+            append!(row, norm_bbox)
+        end
     end
-    (bbox_list, z_closest)
+
+    if length(asso_matrix) == 0
+        return [row']
+    else
+        return [asso_matrix; row']
+    end
 end
 
-# Associates left and the minimum norm (first found) right bboxes and returns the estimated number of vehicles to add
-# Assumes there are leftover bboxes from both cameras
-function associate_left_right(left_bboxes::Vector{BBoxMeas}, right_bboxes::Vector{BBoxMeas})
-    for left_bbox ∈ left_bboxes
-        min_norm = Inf
-        closest_ind = 0
-
-        thres = 2000 # TODO change
+# TODO 
+# Returns the first found closest bbox, if below a certain threshold
+function find_associated_meas(predicted_dict, asso_matrix)
     
-        i = 1
+end
+
+# Associates left and the minimum norm (first found) right bboxes under the assumption that there are leftover bboxes from both cameras
+function associate_left_right(left_bboxes::Vector{BBoxMeas}, right_bboxes::Vector{BBoxMeas})
+    asso_matrix = []
+    thres = 0.11
+    
+    for left_bbox ∈ left_bboxes
+        row = []
         z_left = convert_to_vector(left_bbox)
+    
         for right_bbox ∈ right_bboxes
-            z_right = convert_to_vector(right_bbox)
-            norm_bbox = norm(z_left - z_right)
-            if norm_bbox < min_norm
-                min_norm = norm_bbox
-                closest_ind = i
-            end
-            i += 1 # Keep track of index
+            norm_bbox = norm(z_left - convert_to_vector(right_bbox))
+            append!(row, norm_bbox)
         end
 
-        if min_norm <= thres
-            # Remove bbox from list as it was matched
-            deleteat!(right_bboxes, closest_ind)
+        if length(asso_matrix) == 0
+            asso_matrix = [row']
+        else
+            asso_matrix = [asso_matrix; row']
         end
     end
+    
+    num_matched = 0
+    # TODO
+    # Now go through, get min of each row 
+    # If min < thres then matched ++
+   
 
     # Return # of vehicles to add
-    length(left_bboxes) + length(right_bboxes)
-end
-
-# Stores vehicle at next index k
-function store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, k)
-    new_tracks[k] = convert_to_state(x)
-    new_vel_dict[k] = x.v
-    new_cov_dict[k] = P
-    k += 1
-    (new_tracks, new_vel_dict, new_cov_dict, k)
+    length(left_bboxes) + length(right_bboxes) - num_matched
 end
 
 # If unmatched bboxes, assume new vehicles
@@ -357,15 +346,20 @@ function resolve_unmatched_bboxes(left_bboxes, right_bboxes, new_tracks, new_vel
     (new_tracks, new_vel_dict, new_cov_dict)
 end
 
-# ---------------------------------------------------------------------------------
+# Stores vehicle information at next index k in their respective dicts
+function store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, k)
+    new_tracks[k] = convert_to_state(x)
+    new_vel_dict[k] = x.v
+    new_cov_dict[k] = P
+    (new_tracks, new_vel_dict, new_cov_dict)
+end
 
-# Implementation for one vehicle.
+
 function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_array, road)
     lines = []
 
     vel_dict = Dict{Int, Float64}() # Stores velocity
     cov_dict = Dict{Int, Matrix{Float64}}() # Stores covariance
-
     while true
         sleep(0)
         @return_if_told(EMG)
@@ -380,8 +374,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
         new_vel_dict = Dict{Int, Float64}() # Initialize
         new_cov_dict = Dict{Int, Matrix{Float64}}() # Initialize
         cur_t = 0 # Initialize
-
-        if num_left_bboxes > 0 || num_right_bboxes > 0
+    
+        if num_left_bboxes > 0 || num_right_bboxes > 0 # No needed update if no new data
             # TODO comment out below
             # println("LEFT: $left_bboxes")
             # println("RIGHT: $right_bboxes")
@@ -397,100 +391,95 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                 tracks = tracks_obj.tracks # ::Dict{Int, ObjectState}
             end
 
-            k = 1
-            if length(tracks) == 0 # No tracks exist yet, but there are cars on road now
+            if length(tracks) == 0 # No tracks exist yet, but there are cars on the road now
                # Associate the left and right bboxes so we know how many vehicles to add
                num_vehicles = associate_left_right(left_bboxes, right_bboxes)
                for i in 1:num_vehicles
                    (x_predicted, P_predicted) = initialize()
                    
-                   # Store values at next index k
-                   (new_tracks, new_vel_dict, new_cov_dict, k) = store_vehicle(x_predicted, P_predicted, new_tracks, new_vel_dict, new_cov_dict, k)
+                   # Store values at index i
+                   (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x_predicted, P_predicted, new_tracks, new_vel_dict, new_cov_dict, i)
                end
             else # Tracks exist
                 Δt = get_time(prev_t, cur_t)
 
+                left_asso_matrix = []
+                right_asso_matrix = []
+
+                k = 1
+                predicted_dict = Dict{Int, Tuple{Tuple{Vector{Float64}, Vector{Float64}}, ObjectStatePlus, Matrix{Float64}, Tuple{Tuple{Vector{Float64}, Vector{Float64}}}}}()
                 for i in 1:length(tracks)
                     # Convert from ObjectState to ObjectStatePlus
                     x_prev = convert_to_stateplus(tracks[i], vel_dict[i])
                     P_prev = cov_dict[i]
 
-                    # Predict state and covariance
+                    # Predict state
                     x_predicted = state_dynamics(x_prev, Δt, P_prev) # = f(x, u), ::ObjectStatePlus
-                    F = jac_f(Δt, x_prev.v, x_prev.θ)
-                    P_predicted = predict_cov(F, P_prev) # FkPk-1 * Fk' + Qk
-
-                    # Convert to a moveable
-                    moveables = Dict{Int,Movable}()
-                    moveables[1] = convert_to_ms(x_predicted)
 
                     # Use x_predicted to get predicted left and right bboxes
-                    # Note that cars now out of frame are not saved to new_tracks
+                    moveables = Dict{Int,Movable}(convert_to_ms(x_predicted))
                     (left_predicted, right_predicted) = get_predicted_bbox(moveables, camera_array, cur_t, road)
 
-                    if length(left_predicted) == 0 && length(right_predicted) == 0
-                        continue
-                    end
+                    # If vehicle now predicted to be out of frame, do not track
+                    if !(length(left_predicted) == 0 && length(right_predicted) == 0)
+                        # Predict covariance
+                        F = jac_f(Δt, x_prev.v, x_prev.θ)
+                        P_predicted = predict_cov(F, P_prev) # FkPk-1 * Fk' + Qk
+                        
+                        predicted_dict[k] = ((left_predicted, right_predicted), x_predicted, P_predicted, ([], []))
+                        k += 1
 
-                    # Associating track to left, right bounding boxes, if applicable
+                        # Construct association matrices
+                        left_asso_matrix = add_asso_matrix_row(left_predicted, left_bboxes, left_asso_matrix)
+                        right_asso_matrix = add_asso_matrix_row(right_predicted, right_bboxes, right_asso_matrix)
+                    end
+                end
+
+                # Associate previous tracks with incoming measurements, then update
+                for i in 1:length(predicted_dict)
+                    # ----------------------------------------------
+                    # Associate each 
+                    # predicted_dict[i] row in asso matrix - check if left_predicted is 0, don't associate (make z_left = 0), likewise with z_right so dims are always the same, so maybe go by row instead - associate if not out of frame
+                    # is row[i] for each matrix - IDK
+                    # assign associated to last part of tuple
                     left_asso = []
                     right_asso = []
-                    if length(left_predicted) != 0 && length(left_bboxes) != 0 # Not out of left frame and there are bboxes to match to
-                        # Associate predicted bbox with closest bbox for left
-                        (left_bboxes, left_asso) = find_associated_meas(left_bboxes, left_predicted)
-                    end
-                    if length(right_predicted) != 0 && length(right_bboxes) != 0 # Not out of right frame and there are bboxes to match to
-                        # Associate predicted bbox with closest bbox for right
-                        (right_bboxes, right_asso) = find_associated_meas(right_bboxes, right_predicted)
-                    end
+                    predicted_dict[i][4] = (left_asso, right_asso)
 
-                    if length(left_asso) == 0 && length(right_asso) == 0
-                        continue
-                    end
+                    find_associated_meas(predicted_dict, left_asso_matrix)
+                    find_associated_meas(predicted_dict, right_asso_matrix)
 
-                    # If different sizes... buffer with zeros
-                    if length(left_predicted) > length(left_asso)
-                        left_asso = [0, 0, 0, 0]
-                    elseif length(left_predicted) < length(left_asso)
-                        left_predicted = [0, 0, 0, 0]
-                    else
-                        # Lengths are the same - do nothing
-                    end 
+                    # If no matches with incoming meas, then vehicle is out of frame - do not track
+                    # go by row, if minimum of row > thres, then no match.
+                    # if length(left_asso) == 0 && length(right_asso) == 0
+                      #  continue
+                    #end
 
-                    if length(right_predicted) > length(right_asso)
-                        right_asso = [0, 0, 0, 0]
-                    elseif length(right_predicted) < length(right_asso)
-                        right_predicted = [0, 0, 0, 0]
-                    else
-                        # Lengths are the same - do nothing
-                    end 
+                    # Assume new vehicles for unmatched bboxes
+                    #(new_tracks, new_vel_dict, new_cov_dict) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, new_tracks, new_vel_dict, new_cov_dict, k)
 
-                    zk = [left_asso; right_asso]
+                    # ----------------------------------------------
 
+                    # have to change these values from stored in predicted_dict
                     # Update state and covariance
                     yk = residual_meas(zk, [left_predicted; right_predicted])
-                    H_left = jac_h(left_predicted, x_predicted, moveables, camera_array[1])
-                    H_right = jac_h(right_predicted, x_predicted, moveables, camera_array[2])
-                    H = [H_left; H_right]
+                    moveables = Dict{Int,Movable}(convert_to_ms(x_predicted))
+                    H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
                     S = residual_cov(H, P_predicted, length(zk))
                     K = kalman_gain(P_predicted, H, S)
                     x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
                     P = update_cov(P_predicted, H, K)
 
-                    # Store values at next index k
-                    (new_tracks, new_vel_dict, new_cov_dict, k) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, k)
+                    # Store values at next index
+                    (new_tracks, new_vel_dict, new_cov_dict, i) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
+                    k += 1
                 end
-
-                # Assume new vehicles for unmatched bboxes
-                (new_tracks, new_vel_dict, new_cov_dict) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, new_tracks, new_vel_dict, new_cov_dict, k)
-
-                # Replace old values with updated values
-                vel_dict = new_vel_dict
-                cov_dict = new_cov_dict
-                @replace(TRACKS, TracksMessage(cur_t, new_tracks))
             end
-        else
-            # No needed update - no new data (bboxes)
+
+            # Replace old values with updated values
+            vel_dict = new_vel_dict
+            cov_dict = new_cov_dict
+            @replace(TRACKS, TracksMessage(cur_t, new_tracks))
         end
     end
 end
