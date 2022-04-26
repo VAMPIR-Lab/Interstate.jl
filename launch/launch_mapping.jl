@@ -57,12 +57,13 @@ function launch_mapping(; num_viewable=10, view_lidar=false, lanes=2, lanewidth=
     @sync begin
         @async visualize(SIM_ALL, EMG, view_objs, cam)
         view_lidar && @async visualize(SENSE_LIDAR, EMG, lidar, scene)
-        @spawn simulate(sim, EMG, SIM_ALL; disp=true, check_collision=false)
+        @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=false)
         @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG; disp=false, θ_step = 0.2, V_step=2.5 )
         @spawn sense(SIM_ALL, EMG, sensors_oracle, road)
         @spawn sense(SIM_ALL, EMG, sensors_ego, road)
         @spawn keyboard_broadcaster(KEY, EMG)
         @spawn localize(SENSE_LIDAR, SENSE_GPS, LOCALIZE, CMD_EGO, EMG, lidar, road, buildings)
+        @spawn eval_localization(SIM_ALL, LOCALIZE, EMG)
     end
     nothing
 end

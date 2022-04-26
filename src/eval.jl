@@ -113,6 +113,7 @@ function eval_racing(SIM_STATE::Channel, EMG::Channel, road; disp=false, print_g
     total_turns = 0.0     
     sim_state = fetch(SIM_STATE)
     initial_time = sim_state[1]
+
     ego = sim_state[2][1]
     θ_prev = get_road_angle(ego, road)
     cycles_to_print = print_gap
@@ -145,6 +146,77 @@ function eval_racing(SIM_STATE::Channel, EMG::Channel, road; disp=false, print_g
         if time_expired 
             @replace(EMG, 1)
             break
+        end
+    end
+end
+
+function eval_localization(SIM_STATE::Channel, LOCALIZE::Channel, EMG::Channel; retention=0.25, print_gap=10, disp=true)
+    sim_state = fetch(SIM_STATE)
+    sim_time = sim_state[1]
+    ego = sim_state[2][1]
+    ego_states = Dict{Float64, Movable}()
+    ego_states[sim_time] = ego
+         
+    localization_message = nothing
+
+    cycles_to_print = print_gap
+    total_iters = 0
+    average_localization_err = 0.0
+
+    while true
+        sleep(0)
+        @break_if_told(EMG)
+
+        sim_state = @fetch_or_default(SIM_STATE, sim_state)
+
+        sim_time = sim_state[1]
+        ego = sim_state[2][1]
+        ego_states[sim_time] = ego
+
+        for t in keys(ego_states)
+            if t < sim_time - retention
+                delete!(ego_states, t)
+            end
+        end
+
+        localization_message = @fetch_or_default(LOCALIZE, localization_message)
+       
+        if !isnothing(localization_message)
+            ts = localization_message.timestamp
+            pos = localization_message.position
+        else
+            ts = 0.0
+            pos = [0.0,0.0]
+        end
+        
+        gts = keys(ego_states)
+        earliest_gt = minimum(gts)
+        latest_gt = maximum(gts)
+
+        if ts < earliest_gt
+            ts = earliest_gt
+            pos = [0.0, 0.0]
+        end
+
+        t_closest = Inf
+        for t ∈ gts
+            if abs(t-ts) < abs(t_closest - ts)
+                t_closest = t
+            end
+        end
+
+        localization_err = norm(position(ego_states[t_closest]) - pos)
+        total_iters += 1
+        average_localization_err = ((total_iters - 1) * average_localization_err + localization_err) / total_iters
+        if disp
+            if cycles_to_print ≤ 0
+                print("\e[2K")
+                print("\e[1G")
+                @printf("Current time is %f. Track eval delay: %f. Average error is %f.", latest_gt, latest_gt-t_closest, average_localization_err) 
+                cycles_to_print = print_gap
+            else
+                cycles_to_print -= 1
+            end
         end
     end
 end
