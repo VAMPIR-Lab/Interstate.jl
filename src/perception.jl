@@ -144,7 +144,7 @@ function expected_bbox_pts(camera, pts, gt)
         end
         if px > right
             right = px
-            pt_right
+            pt_right = pt
         end
     end
     [pt_left, pt_top, pt_right, pt_bottom]
@@ -184,7 +184,6 @@ function jac_h(z_predicted, x_predicted::ObjectStatePlus, moveables::Dict{Int,Mo
                 0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
                 0 0 0 0 0 0 1] # 3 x 7
     jac_x_q = camera.R # 3x3
-
     jac_l_px = [1] 
     
     jac_l = jac_l_px * jac_px_x_l * jac_x_q * jac_q_x # jac entry for each l, r, b, t, 
