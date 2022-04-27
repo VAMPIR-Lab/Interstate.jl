@@ -14,6 +14,17 @@ macro replace(clk, val)
     end
 end
 
+macro deepcopy_or_continue(clk)
+    quote
+        local channel = $(esc(clk))
+        lock(channel)
+        try
+            isready(channel) ? deepcopy(fetch(channel)) : continue
+        finally
+            unlock(channel)
+        end
+    end
+end
 macro fetch_or_continue(clk)
     quote
         local channel = $(esc(clk))
