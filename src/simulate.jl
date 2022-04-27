@@ -70,8 +70,12 @@ function simulate(sim::Simulator, emg, channel;
             update_command!(movable)
             update_state!(movable, Δ)
         end
-       
-        @replace(channel, (simulated_time, sim.movables))
+
+        out_data = Dict{Int, Movable}()
+        for (id, movable) ∈ sim.movables
+            out_data[id] = Movable(movable)
+        end
+        @replace(channel, (simulated_time, out_data))
 
         if check_collision && collision(sim.movables)
             println()

@@ -38,6 +38,21 @@ Base.@kwdef struct Building <: Movable
     channel::Channel{Int} = Channel{Int}(0)
 end
 
+function Movable(m::Unicycle)
+    state = MVector{4, Float64}(m.state[1], m.state[2], m.state[3], m.state[4])
+    control = MVector{2, Float64}(m.control[1], m.control[2])
+    Unicycle(state, control, m.length, m.width, m.height, m.color, m.target_vel, m.target_lane, m.channel)
+end
+function Movable(m::Bicycle)
+    state = MVector{4, Float64}(m.state[1], m.state[2], m.state[3], m.state[4])
+    control = MVector{2, Float64}(m.control[1], m.control[2])
+    Unicycle(state, control, m.lf, m.lr, m.width, m.height, m.color, m.target_vel, m.target_lane, m.channel)
+end
+function Movable(m::Building)
+    position = SVector{2, Float64}(m.position[1], m.position[2])
+    Building(position, m.heading, m.width, m.length, m.height, m.color, m.channel)
+end
+
 Base.copy(x::T) where T<:Movable = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)
 
 function position(m::Building)
