@@ -93,7 +93,7 @@ function launch_perception(; num_agents=3, num_viewable=20, loop=true, loop_radi
         @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=false)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         @spawn keyboard_broadcaster(KEY, EMG)
-        @spawn eval_perception(SIM_ALL, TRACKS, EMG, camera_array, road; disp=true)
+        @async eval_perception(SIM_ALL, TRACKS, EMG, camera_array, road; disp=true)
     end
     nothing
 end
