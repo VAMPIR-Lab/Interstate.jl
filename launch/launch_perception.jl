@@ -5,7 +5,7 @@ using StaticArrays
 using Polyhedra
 using .Threads
 
-function launch_perception(; num_agents=20, num_viewable=20, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
+function launch_perception(; num_agents=10, num_viewable=10, tracks_to_view = 0, loop=true, loop_radius=50.0, lanes=4, lanewidth=5.0)
  
     CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
     EMG = Channel{Int}(1)
@@ -71,11 +71,22 @@ function launch_perception(; num_agents=20, num_viewable=20, loop=true, loop_rad
  
     #TODO pull view_obj stuff into function 
     view_objs = []
+    view_tracks = []
     
     for i ∈ 1:num_viewable
         color = Observable(movables[i].color)
         corners = Observable{SVector{8, SVector{3, Float64}}}(get_corners(movables[i]))
         push!(view_objs, (corners, color)) 
+        hull = @lift convexhull($corners...)
+        poly = @lift polyhedron($hull)
+        mesh = @lift Polyhedra.Mesh($poly)  
+        GLMakie.mesh!(scene, mesh, color=color)
+    end
+    dummy_pts = get_corners(Unicycle(state=[loop_radius, loop_radius,0,0]))
+    for i ∈ 1:tracks_to_view
+        color = Observable(parse(RGB, "rgb"*string((0,0,0))))
+        corners = Observable{SVector{8, SVector{3, Float64}}}(dummy_pts)
+        push!(view_tracks, (corners, color)) 
         hull = @lift convexhull($corners...)
         poly = @lift polyhedron($hull)
         mesh = @lift Polyhedra.Mesh($poly)  
@@ -87,6 +98,7 @@ function launch_perception(; num_agents=20, num_viewable=20, loop=true, loop_rad
     display(scene)
     @sync begin
         @async visualize(SIM_ALL, EMG, view_objs, nothing)
+        @async visualize(TRACKS, EMG, view_tracks, dummy_pts)
         @async visualize(SENSE_CAM, EMG, camera_array, scene)
         @spawn object_tracker(SENSE_CAM, TRACKS, EMG, camera_array, road)
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
