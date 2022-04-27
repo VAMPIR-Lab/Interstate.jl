@@ -273,6 +273,8 @@ function add_asso_matrix_row(predicted_bbox, bbox_list::Vector{BBoxMeas}, asso_m
         end
     end
 
+    println("ROW = $row")
+
     if length(asso_matrix) == 0
         return [row']
     else
@@ -308,10 +310,16 @@ function associate_left_right(left_bboxes::Vector{BBoxMeas}, right_bboxes::Vecto
     end
     
     num_matched = 0
-    # TODO
-    # Now go through, get min of each row 
-    # If min < thres then matched ++
-   
+
+    # Get minimum of each row
+    for i in 1:length(left_bboxes) 
+        match_i = argmin(asso_matrix[i,:]) # Index of min in row
+        if asso_matrix[i][match_i] < thres
+            # Consider a match
+            asso_matrix[:,match_i] .= Inf # Set column to inf so can't be selected again
+            num_matched += 1
+        end
+    end
 
     # Return # of vehicles to add
     length(left_bboxes) + length(right_bboxes) - num_matched
@@ -377,8 +385,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
     
         if num_left_bboxes > 0 || num_right_bboxes > 0 # No needed update if no new data
             # TODO comment out below
-            # println("LEFT: $left_bboxes")
-            # println("RIGHT: $right_bboxes")
+            println("LEFT: $left_bboxes")
+            println("RIGHT: $right_bboxes")
 
             cur_t = (num_left_bboxes > 0) ? left_bboxes[1].time : right_bboxes[1].time
             
@@ -407,7 +415,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                 right_asso_matrix = []
 
                 k = 1
-                predicted_dict = Dict{Int, Tuple{Tuple{Vector{Float64}, Vector{Float64}}, ObjectStatePlus, Matrix{Float64}, Tuple{Vector{Float64}, Vector{Float64}}}}()
+                predicted_dict = Dict{Int, Vector{Any}}()
                 for i in 1:length(tracks)
                     # Convert from ObjectState to ObjectStatePlus
                     x_prev = convert_to_stateplus(tracks[i], vel_dict[i])
@@ -426,7 +434,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         F = jac_f(Δt, x_prev.v, x_prev.θ)
                         P_predicted = predict_cov(F, P_prev) # FkPk-1 * Fk' + Qk
                         
-                        predicted_dict[k] = ((left_predicted, right_predicted), x_predicted, P_predicted, ([], []))
+                        predicted_dict[k] = [left_predicted, right_predicted, x_predicted, P_predicted, [], []]
                         k += 1
 
                         # Construct association matrices
@@ -440,14 +448,19 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     # ----------------------------------------------
                     # Associate each 
                     # predicted_dict[i] row in asso matrix - check if left_predicted is 0, don't associate (make z_left = 0), likewise with z_right so dims are always the same, so maybe go by row instead - associate if not out of frame
-                    # is row[i] for each matrix - IDK
-                    # assign associated to last part of tuple
-                    left_asso = []
-                    right_asso = []
-                    #predicted_dict[i] = update value of same values and , (left_asso, right_asso)
+                
+                    #last_matched = 1
 
-                    find_associated_meas(predicted_dict, left_asso_matrix)
-                    find_associated_meas(predicted_dict, right_asso_matrix)
+                    if length(predicted_dict[i][1]) > 0 # left_predicted exists - find a match
+                        l = argmin(left_asso_matrix[i,:]) # Index of min in row
+                        left_asso_matrix[:,l] .= Inf # Set column to inf so can't be selected again
+                        predicted_dict[i][5] = left_bboxes[l]
+                    end
+                    if length(predicted_dict[i][2]) > 0 # right_predicted exists - find a match
+                        r = argmin(right_asso_matrix[i,:]) # Index of min in row
+                        right_asso_matrix[:,r] .=  Inf
+                        predicted_dict[i][6] = right_bboxes[r]
+                    end
 
                     # If no matches with incoming meas, then vehicle is out of frame - do not track
                     # go by row, if minimum of row > thres, then no match.
@@ -460,15 +473,15 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
 
                     # ----------------------------------------------
 
-                    # have to change these values from stored in predicted_dict
                     # Update state and covariance
-                    yk = residual_meas(zk, [left_predicted; right_predicted])
-                    moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
-                    H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
-                    S = residual_cov(H, P_predicted, length(zk))
-                    K = kalman_gain(P_predicted, H, S)
-                    x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
-                    P = update_cov(P_predicted, H, K)
+                    zk = [predicted_dict[i][5]; predicted_dict[i][6]]
+                    yk = residual_meas(zk, [predicted_dict[i][1]; predicted_dict[i][2]])
+                    moveables = Dict{Int,Movable}(1=>convert_to_ms(predicted_dict[i][3])) # x_predicted
+                    H = compute_H(predicted_dict[i][1], predicted_dict[i][2], predicted_dict[i][3], moveables, camera_array)
+                    S = residual_cov(H, predicted_dict[i][4], length(zk)) # P_predicted
+                    K = kalman_gain(predicted_dict[i][4], H, S)
+                    x = update_state(predicted_dict[i][3], K, yk) # ::ObjectStatePlus
+                    P = update_cov(predicted_dict[i][4], H, K)
 
                     # Store values at next index
                     (new_tracks, new_vel_dict, new_cov_dict, i) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
