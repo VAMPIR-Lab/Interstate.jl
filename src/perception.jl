@@ -38,13 +38,6 @@ struct TracksMessage
     tracks::Dict{Int, ObjectState}
 end
 
-# TODO
-# 2. Threshold for the matching
-# 3. Estimate x0, y0?
-
-
-
-
 # This function returns random Gaussian noise
 function random_sample(Σ)
     sqrt(Σ) * randn(size(Σ,1))
@@ -79,10 +72,27 @@ function convert_to_state(state::ObjectStatePlus)
     ObjectState(state.x, state.y, state.θ, state.length, state.width, state.height)
 end
 
-# This function initializes random initial conditions (as done in launch_perception)
+# This function initializes random initial conditions for a new car entering in camera frame
+function initialize_new_car()
+    x0 = -40
+    y0 = 5
+    v0 = 5.0 + rand()*5.0
+    θ0 = rand() * 2.0 * pi - pi
+    extra_size = rand()
+    l0 = 3.0 + 6.0 * extra_size
+    w0 = 1.5 + 2.0 * extra_size
+    h0 = 2.0 + 1.0 * extra_size
+    
+    x = ObjectStatePlus(x0, y0, v0, θ0, l0, w0, h0)
+    P = diagm(0.1*ones(Float64, 7))
+    (x, P)
+end
+
+# This function initializes random initial conditions for existing car in frame
 function initialize()
-    x0 = 0
-    y0 = 0
+    # x0, y0 initialized by observation
+    x0 = -40 # put this in the middle somweheere TOOOODOO
+    y0 = 5
     v0 = 5.0 + rand()*5.0
     θ0 = rand() * 2.0 * pi - pi
     extra_size = rand()
@@ -206,6 +216,7 @@ function jac_h(x_predicted::ObjectStatePlus, moveables::Dict{Int,Movable}, camer
     H = [jac_l; jac_t; jac_r; jac_b]
 end
 
+#H = ones(length(left_predicted) + length(right_predicted), 7)
 function compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
     H = reshape([],0,7)
     # Only if in camera frame can we compute the jacobian
@@ -217,7 +228,6 @@ function compute_H(left_predicted, right_predicted, x_predicted, moveables, came
         H_right = jac_h(x_predicted, moveables, camera_array[2])
         H = vcat(H, H_right)
     end
-    println("H: $H")
     H
 end
 
@@ -320,32 +330,30 @@ function associate_left_right(left_bboxes::Vector{BBoxMeas}, right_bboxes::Vecto
 end
 
 # If unmatched bboxes, assume new vehicles
-function resolve_unmatched_bboxes(left_bboxes, right_bboxes, new_tracks, new_vel_dict, new_cov_dict, k)
-    if length(left_bboxes) > 0 && length(right_bboxes) > 0
-        # Associate the left and right bboxes so we know how many vehicles to add
-        num_vehicles = associate_left_right(left_bboxes, right_bboxes)
-        for i in 1:num_vehicles
-            (x_predicted, P_predicted) = initialize()
+function resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, matched_right, new_tracks, new_vel_dict, new_cov_dict)
+    
+    # Get unmatched left
+    unmatched_left = collect(1:length(left_bboxes))
+    unmatched_left = unmatched_left[filter(x->!(x in matched_left), eachindex(unmatched_left))]
+    leftover_left = [x for (index, x) in enumerate(left_bboxes) if index in unmatched_left] 
+
+    # Get unmatched right
+    unmatched_right = collect(1:length(right_bboxes))
+    unmatched_right = unmatched_right[filter(x->!(x in matched_right), eachindex(unmatched_right))]
+    leftover_right = [x for (index, x) in enumerate(right_bboxes) if index in unmatched_right] 
+
+    if length(leftover_left) > 0 && length(leftover_right) > 0
+        num_new_vehicles = associate_left_right(leftover_left, leftover_right)
+
+        for i in 1:num_new_vehicles
+            (x, P) = initialize_new_car()
             
-            # Store values at next index k
-            (new_tracks, new_vel_dict, new_cov_dict, k) = store_vehicle(x_predicted, P_predicted, new_tracks, new_vel_dict, new_cov_dict, k)
-        end
-    else # Add # of bboxes as cars
-        for bbox ∈ left_bboxes
-            (x_predicted, P_predicted) = initialize()
-            
-            # Store values at next index k
-            (new_tracks, new_vel_dict, new_cov_dict, k) = store_vehicle(x_predicted, P_predicted, new_tracks, new_vel_dict, new_cov_dict, k)
-        end
-        for bbox ∈ right_bboxes
-            (x_predicted, P_predicted) = initialize()
-            
-            # Store values at next index k
-            (new_tracks, new_vel_dict, new_cov_dict, k) = store_vehicle(x_predicted, P_predicted, new_tracks, new_vel_dict, new_cov_dict, k)
+            # Store values at next index
+            (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
         end
     end
 
-    (new_tracks, new_vel_dict, new_cov_dict)
+    (new_tracks, new_vel_dict, new_cov_dict, num_new_vehicles)
 end
 
 # Stores vehicle information at next index k in their respective dicts
@@ -378,9 +386,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
         cur_t = 0 # Initialize
     
         if num_left_bboxes > 0 || num_right_bboxes > 0 # No needed update if no new data
-            # TODO comment out below
-            println("LEFT: $left_bboxes")
-            println("RIGHT: $right_bboxes")
+            #println("LEFT: $left_bboxes")
+            #println("RIGHT: $right_bboxes")
 
             cur_t = (num_left_bboxes > 0) ? left_bboxes[1].time : right_bboxes[1].time
             
@@ -442,66 +449,78 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     end
                 end
 
-                # -------------------------------------
-
-                # TODO - edge cases
-
-                # 4. Association
-                # 5. Resolve resolve_unmatched_bboxes
-                # 6. associate left_right
-                # if associaitng 2 bounindg bboxes, print them with many cars so we can really see how similar they are lol
-                # Verify things flow.... added to matrix?
-
-                # -------------------------------------
-
                 # Associate previous tracks with incoming measurements, then update
                 num_predicted = length(predicted_dict)
-                println("num predicted: $num_predicted")
-                for i in 1:num_predicted
-
-                    # 1. determine some sort of threshold fo better matching?
-
-                    # If num_predicted > num_bboxes, then more vehicles are expected to be in frame than actually are...leaving some predicted_bboxes without matches when they should have one according to our estimate -- whhat would this look like in matrix??? again a threshold might be helpful to get better matches - if min < thres, move on
-                    # well if entire row is inf eventually, just returns 1 - so if returns 1 AND val there is inf, thenno match
-                    #also the thing returnde ... is it? 
-
-                    # TODO - threshold - maybe by seeing mtach 
-                   
-
-                    
+                for i in 1:num_predicted 
                     left_predicted = predicted_dict[i][1]
                     right_predicted = predicted_dict[i][2]
                     z_predicted = [left_predicted; right_predicted]
+
+                    matched_left = []
+                    matched_right = []
             
                     # If left_predicted exists and left_asso matrix exists, find a match
                     if length(left_predicted) > 0 && num_left_bboxes > 0 
                         l = argmin(left_asso_matrix[i,:]) # Index of min in row
-                        println("left_asso_matrix before: $left_asso_matrix")
+                        
+                        # If minimum returns Inf, then all of left_bboxes are matched
                         if l == 1 && left_asso_matrix[i, l] == Inf
-                            println("OUT OF MATCHES")
-                        end
-                        left_asso_matrix[:,l] .= Inf # Set column to inf so won't be selected again
-                        println("left_asso_matrix after: $left_asso_matrix")
-   
-                        predicted_dict[i][5] = convert_to_vector(left_bboxes[l])
 
-                        # if no match - all cols are infso ret 1and inf, then say no match and exit loop -- set  some boolean to all  matched?
-                        
-                        
+                            # If num_predicted > num_bboxes, then more vehicles are expected to be in frame than actually are...leaving some predicted_bboxes without matches when they should have one according to our estimate -- whhat would this look like in matrix??? again a threshold might be helpful to get better matches - if min < thres, move on
+                    # well if entire row is inf eventually, just returns 1 - so if returns 1 AND val there is inf, thenno match
+                    #also the thing returnde ... is it? 
+                            
+                            println("OUT OF MATCHES - left")
+                        end
+
+                        left_asso_matrix[:,l] .= Inf # Set column to inf so won't be selected again
+                        predicted_dict[i][5] = convert_to_vector(left_bboxes[l])
+                        append!(matched_left, l)                   
                     end
 
                     # If right_predicted exists and right_asso matrix exists, find a match
                     if length(right_predicted) > 0 && num_right_bboxes > 0 #
                         r = argmin(right_asso_matrix[i,:]) # Index of min in row
+
+                        # If minimum returns Inf, then all of right_bboxes are matched
+                        if r == 1 && right_asso_matrix[i, r] == Inf
+                            # this is not match -- 
+                            println("OUT OF MATCHES - rirght")
+                        end
+
                         right_asso_matrix[:,r] .= Inf
                         predicted_dict[i][6] = convert_to_vector(right_bboxes[r])
+                        append!(matched_right, r)
                     end
 
+                    num_new_vehicles = 0
                     # Assume new vehicles for unmatched bboxes
-                     # If num_predicted < num_bboxes, assume new vehicles entered that are unaccounted for - the unresolved bounding boxes are new vehicles - we can make the algo better by adding a threshold to get more accurate matchings
-                    #(new_tracks, new_vel_dict, new_cov_dict) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, new_tracks, new_vel_dict, new_cov_dict, k)
+                    if num_predicted < num_left_bboxes || num_predicted < num_right_bboxes
+                        (new_tracks, new_vel_dict, new_cov_dict, num_new_vehicles) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, matched_right, new_tracks, new_vel_dict, new_cov_dict)
 
-                    # ----------------------------------------------
+
+                        #= # Get unmatched left
+                        unmatched_left = collect(1:num_left_bboxes)
+                        unmatched_left = unmatched_left[filter(x->!(x in matched_left), eachindex(unmatched_left))]
+                        leftover_left = [x for (index, x) in enumerate(left_bboxes) if index in unmatched_left] 
+
+                        # Get unmatched right
+                        unmatched_right = collect(1:num_right_bboxes)
+                        unmatched_right = unmatched_right[filter(x->!(x in matched_right), eachindex(unmatched_right))]
+                        leftover_right = [x for (index, x) in enumerate(right_bboxes) if index in unmatched_right] 
+
+                        if length(leftover_left) > 0 && length(leftover_right) > 0
+                            num_new_vehicles = associate_left_right(leftover_left, leftover_right)
+
+                            for i in 1:num_new_vehicles
+                                (x, P) = initialize_new_car()
+                                
+                                # Store values at next index
+                                (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
+                            end
+                        end =#
+                    end
+                    k = num_new_vehicles + 1
 
                     # Update state and covariance if zk (associated meas) exists
                     zk_left = predicted_dict[i][5]
@@ -518,8 +537,6 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         right_predicted = []
                     end
 
-                    println("zk: $zk")
-                    println("z_p: $z_predicted")
                     # If no matches at all, when there should have been one at least - assume that prediction was wrong and vehicle is now out of frame - do not track
                     if length(zk) != 0
                         x_predicted = predicted_dict[i][3]
@@ -534,7 +551,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         P = update_cov(P_predicted, H, K)
 
                         # Store values at next index
-                        (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
+                        (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, k)
+                        k += 1
                     end
                 end
             end
@@ -542,6 +560,11 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             # Replace old values with updated values
             vel_dict = new_vel_dict
             cov_dict = new_cov_dict
+
+            temp = length(new_tracks)
+            println("Num tracks: $temp")
+            println("Updated track: $new_tracks")
+            
             @replace(TRACKS, TracksMessage(cur_t, new_tracks))
         end
     end
