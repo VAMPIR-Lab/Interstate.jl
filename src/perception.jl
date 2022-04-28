@@ -282,7 +282,6 @@ function update_state(x_predicted::ObjectStatePlus, K, yk)
     l = x_predicted.length + Ky[5]
     w = x_predicted.width + Ky[6]
     h = x_predicted.height + Ky[7]
-    println("KY: $Ky")
 
     ObjectStatePlus(x, y, v, θ, l, w, h)
 end
@@ -554,7 +553,6 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             # Replace old values with updated values
             vel_dict = new_vel_dict
             cov_dict = new_cov_dict
-            println("tracks: $tracks")
             @replace(TRACKS, TracksMessage(cur_t, new_tracks))
         end
     end
