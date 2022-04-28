@@ -143,25 +143,27 @@ function expected_bbox_pts(camera, pts)
     pt_top = []
     pt_right =  []
     pt_bottom = []
+    i = 1
     for pt ∈ pts
         px = max(min(camera.focal_len * pt[1] / (pt[3] * camera.sx), 1.0), -1.0)
         py = max(min(camera.focal_len * pt[2] / (pt[3] * camera.sy), 1.0), -1.0)
         if py < top
             top = py
-            pt_top = pt
+            pt_top = i
         end
         if py > bottom
             bottom = py
-            pt_bottom = pt
+            pt_bottom = i
         end
         if px < left
             left = px
-            pt_left = pt
+            pt_left = i
         end
         if px > right
             right = px
-            pt_right = pt
+            pt_right = i
         end
+        i = i+1
     end
     [pt_left, pt_top, pt_right, pt_bottom]
 end
@@ -178,33 +180,59 @@ function jac_h(x_predicted::ObjectStatePlus, moveables::Dict{Int,Movable}, camer
 
     pts = get_corners(moveables[1])
     transform!(camera, pts...)
-    corner_pts = expected_bbox_pts(camera, pts)
-    pt_left = corner_pts[1]
-    pt_top = corner_pts[2]
-    pt_right = corner_pts[3]
-    pt_bottom = corner_pts[4]
+    # corner_pts = expected_bbox_pts(camera, pts)
+    # pt_left = corner_pts[1]
+    # pt_top = corner_pts[2]
+    # pt_right = corner_pts[3]
+    # pt_bottom = corner_pts[4]
+    cl = expected_bbox_pts(camera,pts)[1]
+    ct = expected_bbox_pts(camera,pts)[2]
+    cr = expected_bbox_pts(camera,pts)[3]
+    cb = expected_bbox_pts(camera,pts)[4]
+    pt_left = pts[cl]
+    pt_top = pts[ct]
+    pt_right = pts[cr]
+    pt_bottom = pts[cb]
 
     jac_px_x_l = [f/(pt_left[3] * sx) 0.0 (-pt_left[1]/(pt_left[3]^2))*(f/sx)]
     jac_px_x_r = [f/(pt_right[3] * sx) 0.0 (-pt_right[1]/(pt_right[3]^2))*(f/sx)]
     jac_py_x_t = [f/(pt_top[3] * sy) 0.0 (-pt_top[1]/(pt_top[3]^2))*(f/sy)]
     jac_py_x_b = [f/(pt_bottom[3] * sy) 0.0 (-pt_bottom[1]/(pt_bottom[3]^2))*(f/sy)]
 
-    # l, -w, h
-    jac_q_x_tl = [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
-                0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
-                0 0 0 0 0 0 1]
-    # -l, w, h
-    jac_q_x_br = [1 0 0 -(-l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 -sin(θ)/2 0;
-                0 1 0 -(l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 cos(θ)/2 0;
-                0 0 0 0 0 0 1] 
+    
+    get_jac = Dict(1 => [1 0 0 (l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 sin(θ)/2 0;
+                        0 1 0 (-l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 -cos(θ)/2 0;
+                        0 0 0 0 0 0 0] ,
+                   2 => [1 0 0 (l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 sin(θ)/2 0;
+                         0 1 0 (-l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 -cos(θ)/2 0;
+                         0 0 0 0 0 0 1],
+                   3 =>   [1 0 0 -(-l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 -sin(θ)/2 0;
+                           0 1 0 -(l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 cos(θ)/2 0;
+                           0 0 0 0 0 0 0],
+                   4 =>  [1 0 0 -(-l*sin(θ)+w*cos(θ))/2 -cos(θ)/2 -sin(θ)/2 0;
+                          0 1 0 -(l*cos(θ)+w*sin(θ))/2 -sin(θ)/2 cos(θ)/2 0;
+                          0 0 0 0 0 0 1] ,
+                   5 =>  [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
+                          0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
+                          0 0 0 0 0 0 0],
+                   6=> [1 0 0 (-l*sin(θ)+w*cos(θ))/2 cos(θ)/2 sin(θ)/2 0;
+                        0 1 0 (l*cos(θ)+w*sin(θ))/2 sin(θ)/2 -cos(θ)/2 0;
+                        0 0 0 0 0 0 1],
+                   7=>  [1 0 0 (-l*sin(θ)-w*cos(θ))/2 cos(θ)/2 -sin(θ)/2 0;
+                        0 1 0 (l*cos(θ)-w*sin(θ))/2 sin(θ)/2 cos(θ)/2 0;
+                        0 0 0 0 0 0 0],
+                   8=> [1 0 0 (-l*sin(θ)-w*cos(θ))/2 cos(θ)/2 -sin(θ)/2 0;
+                        0 1 0 (l*cos(θ)-w*sin(θ))/2 sin(θ)/2 cos(θ)/2 0;
+                        0 0 0 0 0 0 1]
+                   )
 
     jac_x_q = camera.R 
     jac_l_px = [1.0]
     
-    jac_l = jac_l_px * jac_px_x_l * jac_x_q * jac_q_x_tl
-    jac_t = jac_l_px * jac_py_x_t * jac_x_q * jac_q_x_tl
-    jac_r = jac_l_px * jac_px_x_r * jac_x_q * jac_q_x_br
-    jac_b = jac_l_px * jac_py_x_b * jac_x_q * jac_q_x_br
+    jac_l = jac_l_px * jac_px_x_l * jac_x_q * get_jac[cl]
+    jac_t = jac_l_px * jac_py_x_t * jac_x_q * get_jac[ct]
+    jac_r = jac_l_px * jac_px_x_r * jac_x_q * get_jac[cr]
+    jac_b = jac_l_px * jac_py_x_b * jac_x_q * get_jac[cb]
 
     H = [jac_l; jac_t; jac_r; jac_b]
 end
@@ -234,7 +262,7 @@ function residual_meas(zk, z_predicted)
 end
 
 function residual_cov(H, P_predicted, zk_length)
-    R = diagm(ones(Float64,zk_length))
+    R = diagm(ones(Float64,zk_length)).*0.1
     S = H * P_predicted * transpose(H) + R
 end
 
@@ -254,6 +282,7 @@ function update_state(x_predicted::ObjectStatePlus, K, yk)
     l = x_predicted.length + Ky[5]
     w = x_predicted.width + Ky[6]
     h = x_predicted.height + Ky[7]
+    println("KY: $Ky")
 
     ObjectStatePlus(x, y, v, θ, l, w, h)
 end
@@ -511,7 +540,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         S = residual_cov(H, P_predicted, length(zk))
                         # println("S $S")
                         K = kalman_gain(P_predicted, H, S)
-                        println("Kalman Filter $K")
+                        # println("Kalman Filter $K")
                         x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
                         P = update_cov(P_predicted, H, K)
 
