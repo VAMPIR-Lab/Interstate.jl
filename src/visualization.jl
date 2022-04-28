@@ -90,4 +90,27 @@ function visualize(SIM::Channel,
     end
 end
 
+function visualize(TRACKS::Channel{TracksMessage}, 
+                   EMG::Channel,
+                   viewables, 
+                   dummy_pts)
 
+    num_viewed = length(viewables)
+    closest_ids = zeros(Int, num_viewed)
+    println("Visualizing on thread ", Threads.threadid())
+    while true
+        sleep(0)
+        @return_if_told(EMG) 
+        tracks_msg = @fetch_or_continue(TRACKS)
+        id = 1
+        for (tid, track) ∈ tracks_msg.tracks
+            pts = get_corners(track)
+            viewables[id][1][] = pts
+            id += 1
+        end
+        while id < num_viewed
+            viewables[id][1][] = dummy_pts
+            id += 1
+        end
+    end
+end
