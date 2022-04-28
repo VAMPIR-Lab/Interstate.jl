@@ -55,6 +55,7 @@ function eval_perception(SIM_STATE::Channel, TRACKS::Channel, EMG::Channel, sens
                 ground_truth[id] = Movable(m)
             end
         end
+
         assignments = Dict{Int,Int}()
         for (id, m) ∈ ground_truth
             min_d = Inf
@@ -95,6 +96,9 @@ function eval_perception(SIM_STATE::Channel, TRACKS::Channel, EMG::Channel, sens
                 print("\e[2K")
                 print("\e[1G")
                 @printf("GT time is %f. Track eval delta: %f. Average score is %f. Latest score is %f", t_closest, t_closest-ts, average_track_score, track_score)
+                # TODO comment out
+                println("fp= $fp")
+                println("Ground: $ground_truth")
                 cycles_to_print = print_gap
             else
                 cycles_to_print -= 1

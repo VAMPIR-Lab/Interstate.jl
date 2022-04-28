@@ -38,11 +38,6 @@ struct TracksMessage
     tracks::Dict{Int, ObjectState}
 end
 
-# This function returns random Gaussian noise
-function random_sample(Σ)
-    sqrt(Σ) * randn(size(Σ,1))
-end
-
 # This function returns the time difference
 function get_time(prev_t, cur_t)
     Δt = cur_t - prev_t
@@ -72,7 +67,7 @@ function convert_to_state(state::ObjectStatePlus)
     ObjectState(state.x, state.y, state.θ, state.length, state.width, state.height)
 end
 
-# This function initializes random initial conditions for a new car entering in camera frame
+# This function initializes random initial conditions for a new car entering in camera frame - right
 function initialize_new_car()
     x0 = -40
     y0 = 5
@@ -88,11 +83,11 @@ function initialize_new_car()
     (x, P)
 end
 
-# This function initializes random initial conditions for existing car in frame
+# This function initializes random initial conditions for existing car in frame - middle
 function initialize()
     # x0, y0 initialized by observation
-    x0 = -40 # put this in the middle somweheere TOOOODOO
-    y0 = 5
+    x0 = -10
+    y0 = -12
     v0 = 5.0 + rand()*5.0
     θ0 = rand() * 2.0 * pi - pi
     extra_size = rand()
@@ -106,16 +101,14 @@ function initialize()
 end
 
 # This function updates the vehicle state based off of a previous state estimate saved in tracks
-function state_dynamics(state::ObjectStatePlus, Δt::Float64, P)
-    ω = random_sample(P) # Gaussian noise
-
-    x = state.x + Δt*state.v*cos(state.θ) + ω[1]
-    y = state.y + Δt*state.v*sin(state.θ) + ω[2]
-    v = state.v + ω[3]
-    θ = state.θ + ω[4]
-    l = state.length + ω[5]
-    w = state.width + ω[6]
-    h = state.height + ω[7]
+function state_dynamics(state::ObjectStatePlus, Δt::Float64)
+    x = state.x + Δt*state.v*cos(state.θ)
+    y = state.y + Δt*state.v*sin(state.θ)
+    v = state.v
+    θ = state.θ
+    l = state.length
+    w = state.width
+    h = state.height
 
     ObjectStatePlus(x, y, v, θ, l, w, h)
 end
@@ -232,20 +225,19 @@ function compute_H(left_predicted, right_predicted, x_predicted, moveables, came
 end
 
 function predict_cov(F, P_prev)
-    Qk = diagm(ones(Float64, 7))
-    P = F * P_prev * transpose(F) + Qk
+    P = F * P_prev * transpose(F)
 end
 
 function residual_meas(zk, z_predicted)
     yk = zk - z_predicted
 end
 
-function residual_cov(H, P_predicted, zk_length)
-    Rk = diagm(ones(Float64, zk_length))
-    P = H * P_predicted * transpose(H) + Rk
+function residual_cov(H, P_predicted)
+    S = H * P_predicted * transpose(H)
 end
 
 function kalman_gain(P_predicted, H, S)
+    S = convert(Matrix{Float64}, S)
     K = P_predicted * transpose(H) * inv(S)
 end
 
@@ -331,7 +323,6 @@ end
 
 # If unmatched bboxes, assume new vehicles
 function resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, matched_right, new_tracks, new_vel_dict, new_cov_dict)
-    
     # Get unmatched left
     unmatched_left = collect(1:length(left_bboxes))
     unmatched_left = unmatched_left[filter(x->!(x in matched_left), eachindex(unmatched_left))]
@@ -342,6 +333,7 @@ function resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, match
     unmatched_right = unmatched_right[filter(x->!(x in matched_right), eachindex(unmatched_right))]
     leftover_right = [x for (index, x) in enumerate(right_bboxes) if index in unmatched_right] 
 
+    num_new_vehicles = 0
     if length(leftover_left) > 0 && length(leftover_right) > 0
         num_new_vehicles = associate_left_right(leftover_left, leftover_right)
 
@@ -423,7 +415,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                     P_prev = cov_dict[i]
 
                     # Predict state
-                    x_predicted = state_dynamics(x_prev, Δt, P_prev) # = f(x, u), ::ObjectStatePlus
+                    x_predicted = state_dynamics(x_prev, Δt) # = f(x, u), ::ObjectStatePlus
 
                     # Use x_predicted to get predicted left and right bboxes
                     moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
@@ -458,67 +450,34 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
 
                     matched_left = []
                     matched_right = []
-            
                     # If left_predicted exists and left_asso matrix exists, find a match
                     if length(left_predicted) > 0 && num_left_bboxes > 0 
                         l = argmin(left_asso_matrix[i,:]) # Index of min in row
                         
-                        # If minimum returns Inf, then all of left_bboxes are matched
-                        if l == 1 && left_asso_matrix[i, l] == Inf
-
-                            # If num_predicted > num_bboxes, then more vehicles are expected to be in frame than actually are...leaving some predicted_bboxes without matches when they should have one according to our estimate -- whhat would this look like in matrix??? again a threshold might be helpful to get better matches - if min < thres, move on
-                    # well if entire row is inf eventually, just returns 1 - so if returns 1 AND val there is inf, thenno match
-                    #also the thing returnde ... is it? 
-                            
-                            println("OUT OF MATCHES - left")
-                        end
-
-                        left_asso_matrix[:,l] .= Inf # Set column to inf so won't be selected again
-                        predicted_dict[i][5] = convert_to_vector(left_bboxes[l])
-                        append!(matched_left, l)                   
+                        # If minimum returns Inf and index 1, then all of left_bboxes are matched
+                        # Assume car out of frame...
+                        if !(l == 1 && left_asso_matrix[i, l] == Inf) # z_left = []
+                            left_asso_matrix[:,l] .= Inf # Set column to inf so not selected again
+                            predicted_dict[i][5] = convert_to_vector(left_bboxes[l])
+                            append!(matched_left, l)    
+                        end                                       
                     end
-
                     # If right_predicted exists and right_asso matrix exists, find a match
                     if length(right_predicted) > 0 && num_right_bboxes > 0 #
                         r = argmin(right_asso_matrix[i,:]) # Index of min in row
 
-                        # If minimum returns Inf, then all of right_bboxes are matched
-                        if r == 1 && right_asso_matrix[i, r] == Inf
-                            # this is not match -- 
-                            println("OUT OF MATCHES - rirght")
+                        # If minimum returns Inf and index 1, then all of right_bboxes are matched
+                        if !(r == 1 && right_asso_matrix[i, r] == Inf) # z_right = []
+                            right_asso_matrix[:,r] .= Inf
+                            predicted_dict[i][6] = convert_to_vector(right_bboxes[r])
+                            append!(matched_right, r)
                         end
-
-                        right_asso_matrix[:,r] .= Inf
-                        predicted_dict[i][6] = convert_to_vector(right_bboxes[r])
-                        append!(matched_right, r)
                     end
 
                     num_new_vehicles = 0
                     # Assume new vehicles for unmatched bboxes
                     if num_predicted < num_left_bboxes || num_predicted < num_right_bboxes
                         (new_tracks, new_vel_dict, new_cov_dict, num_new_vehicles) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, matched_right, new_tracks, new_vel_dict, new_cov_dict)
-
-
-                        #= # Get unmatched left
-                        unmatched_left = collect(1:num_left_bboxes)
-                        unmatched_left = unmatched_left[filter(x->!(x in matched_left), eachindex(unmatched_left))]
-                        leftover_left = [x for (index, x) in enumerate(left_bboxes) if index in unmatched_left] 
-
-                        # Get unmatched right
-                        unmatched_right = collect(1:num_right_bboxes)
-                        unmatched_right = unmatched_right[filter(x->!(x in matched_right), eachindex(unmatched_right))]
-                        leftover_right = [x for (index, x) in enumerate(right_bboxes) if index in unmatched_right] 
-
-                        if length(leftover_left) > 0 && length(leftover_right) > 0
-                            num_new_vehicles = associate_left_right(leftover_left, leftover_right)
-
-                            for i in 1:num_new_vehicles
-                                (x, P) = initialize_new_car()
-                                
-                                # Store values at next index
-                                (new_tracks, new_vel_dict, new_cov_dict) = store_vehicle(x, P, new_tracks, new_vel_dict, new_cov_dict, i)
-                            end
-                        end =#
                     end
                     k = num_new_vehicles + 1
 
@@ -545,7 +504,10 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         yk = residual_meas(zk, z_predicted)
                         moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
                         H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
-                        S = residual_cov(H, P_predicted, length(zk))
+                        S = residual_cov(H, P_predicted)
+
+                        println("S: $S")
+                        
                         K = kalman_gain(P_predicted, H, S)
                         x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
                         P = update_cov(P_predicted, H, K)
@@ -560,11 +522,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
             # Replace old values with updated values
             vel_dict = new_vel_dict
             cov_dict = new_cov_dict
-
-            temp = length(new_tracks)
-            println("Num tracks: $temp")
-            println("Updated track: $new_tracks")
-            
+            println("tracks: $tracks")
             @replace(TRACKS, TracksMessage(cur_t, new_tracks))
         end
     end
