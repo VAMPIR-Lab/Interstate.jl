@@ -46,7 +46,7 @@ end
 function Movable(m::Bicycle)
     state = MVector{4, Float64}(m.state[1], m.state[2], m.state[3], m.state[4])
     control = MVector{2, Float64}(m.control[1], m.control[2])
-    Unicycle(state, control, m.lf, m.lr, m.width, m.height, m.color, m.target_vel, m.target_lane, m.channel)
+    Bicycle(state, control, m.lf, m.lr, m.width, m.height, m.color, m.target_vel, m.target_lane, m.channel)
 end
 function Movable(m::Building)
     position = SVector{2, Float64}(m.position[1], m.position[2])

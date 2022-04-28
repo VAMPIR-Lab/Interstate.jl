@@ -241,6 +241,7 @@ end
 function kalman_gain(P_predicted, H, S)
     S = convert(Matrix{Float64}, S)
     K = P_predicted * transpose(H) * inv(S)
+    return K
 end
 
 function update_state(x_predicted::ObjectStatePlus, K, yk)
@@ -380,8 +381,8 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
         cur_t = 0 # Initialize
     
         if num_left_bboxes > 0 || num_right_bboxes > 0 # No needed update if no new data
-            #println("LEFT: $left_bboxes")
-            #println("RIGHT: $right_bboxes")
+            # println("LEFT: $left_bboxes")
+            # println("RIGHT: $right_bboxes")
 
             cur_t = (num_left_bboxes > 0) ? left_bboxes[1].time : right_bboxes[1].time
             
@@ -506,8 +507,11 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         yk = residual_meas(zk, z_predicted)
                         moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
                         H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
+                        # println("H $H")
                         S = residual_cov(H, P_predicted, length(zk))
+                        # println("S $S")
                         K = kalman_gain(P_predicted, H, S)
+                        println("Kalman Filter $K")
                         x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
                         P = update_cov(P_predicted, H, K)
 
