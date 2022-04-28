@@ -508,7 +508,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
 
                     num_new_vehicles = 0
                     # Assume new vehicles for unmatched bboxes
-                    if num_predicted < num_left_bboxes || num_predicted < num_right_bboxes
+                    if num_predicted < num_left_bboxes || num_predicted < num_right_bboxes                        
                         (new_tracks, new_vel_dict, new_cov_dict, num_new_vehicles) = resolve_unmatched_bboxes(left_bboxes, right_bboxes, matched_left, matched_right, new_tracks, new_vel_dict, new_cov_dict)
                     end
                     k = num_new_vehicles + 1
