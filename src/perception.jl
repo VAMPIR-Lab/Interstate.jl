@@ -72,7 +72,7 @@ function initialize_new_car()
     x0 = -40
     y0 = 5
     v0 = 5.0 + rand()*5.0
-    θ0 = rand() * 2.0 * pi - pi
+    θ0 = 6.1
     extra_size = rand()
     l0 = 3.0 + 6.0 * extra_size
     w0 = 1.5 + 2.0 * extra_size
@@ -225,15 +225,17 @@ function compute_H(left_predicted, right_predicted, x_predicted, moveables, came
 end
 
 function predict_cov(F, P_prev)
-    P = F * P_prev * transpose(F)
+    Q = diagm(ones(Float64,7)) # cov mat
+    P = F * P_prev * transpose(F) + Q
 end
 
 function residual_meas(zk, z_predicted)
     yk = zk - z_predicted
 end
 
-function residual_cov(H, P_predicted)
-    S = H * P_predicted * transpose(H)
+function residual_cov(H, P_predicted, zk_length)
+    R = diagm(ones(Float64,zk_length))
+    S = H * P_predicted * transpose(H) + R
 end
 
 function kalman_gain(P_predicted, H, S)
@@ -504,10 +506,7 @@ function object_tracker(SENSE::Channel, TRACKS::Channel, EMG::Channel, camera_ar
                         yk = residual_meas(zk, z_predicted)
                         moveables = Dict{Int,Movable}(1=>convert_to_ms(x_predicted))
                         H = compute_H(left_predicted, right_predicted, x_predicted, moveables, camera_array)
-                        S = residual_cov(H, P_predicted)
-
-                        println("S: $S")
-                        
+                        S = residual_cov(H, P_predicted, length(zk))
                         K = kalman_gain(P_predicted, H, S)
                         x = update_state(x_predicted, K, yk) # ::ObjectStatePlus
                         P = update_cov(P_predicted, H, K)
