@@ -245,6 +245,46 @@ function expected_lidar_return(pos, α_min, ϕ, θ, ms, road)
     return pt_min
 end
 
+
+function expected_lidar_beams(sensor::Lidar, x, y, θ, buildings, road; height=1.5)
+    lidar_pos = [x, y; height] + sensor.offset
+    θ₀ = θ
+    pts = Vector{SVector{3, Float64}}()
+    N = sensor.angular_resolution
+    angles = LinRange(-π, π-2*π/N, N)
+    for ϕ ∈ sensor.beam_elevations
+        for θ ∈ angles
+            pt = expected_lidar_return(lidar_pos, sensor.max_beam_length, ϕ, θ+θ₀, buildings, road)
+            push!(pts, pt)
+        end
+    end
+    meas = PointCloud(pts, lidar_pos, 0) 
+end
+
+function compare_expected_and_actual_lidar(point_cloud_expected, point_cloud_actual)
+    pts_expected = point_cloud_expected.points 
+    pts_actual = point_cloud_actual.points
+
+    total_error = 0
+    for (pt_e, pt_a) ∈ zip(pts_expected, pts_actual)
+        total_error += norm(pt_e - pt_a) 
+    end
+    return -total_error
+end
+
+function do_one_step_of_localization(particles)
+    -figure out what δt is
+    -update each particle using ego_cmd and simulating for δt seconds (update_particle function)
+    -compute a "weight" for each of my particles (after they have been moved)
+        - for each particle the weight = compare_expected_and_actual_lidar(expected_lidar_beams(lidar, particle.x, particle.y, particle.θ, buildings, road), lidar_recieved)
+
+    -Now, we "re-sample" the particles according to their weights.
+        - Normalize all weights first, then perform sampling like in hw3
+        
+    - Also, make sure a few "re-sampled" particles are coming from gps-initialization
+    - repeat
+end
+
 function update_sensor(sensor::Lidar, gt, ms, road)
     m_ego = ms[sensor.m_id]
     lidar_pos = [position(m_ego); top(m_ego)] + sensor.offset
